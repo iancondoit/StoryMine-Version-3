@@ -1,4 +1,4 @@
-import { User, Project, Artifact, Conversation, TokenBalance, Payment, TokenUsage, ProjectStatus, ArtifactType, PaymentStatus } from '@prisma/client';
+import { User, Project, Artifact, Conversation, TokenBalance, Payment, TokenUsage, SourceArticle, ScoutAnalysis } from '../generated/prisma';
 
 // Re-export Prisma types
 export {
@@ -9,10 +9,63 @@ export {
   TokenBalance,
   Payment,
   TokenUsage,
-  ProjectStatus,
-  ArtifactType,
-  PaymentStatus,
-} from '@prisma/client';
+  SourceArticle,
+  ScoutAnalysis
+};
+
+// Define enum types that might not be in the generated client
+export enum ProjectStatus {
+  ACTIVE = 'active',
+  ARCHIVED = 'archived',
+  DRAFT = 'draft'
+}
+
+export enum ArtifactType {
+  TIMELINE = 'timeline',
+  NARRATIVE = 'narrative_thread',
+  CROSSWALK = 'source_crosswalk',
+  HYPOTHESIS = 'hypothesis_tree'
+}
+
+export enum PaymentStatus {
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  REFUNDED = 'refunded'
+}
+
+// Additional types for the application
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface JordiChatRequest {
+  message: string;
+  projectId?: string;
+  userId?: string;
+}
+
+export interface JordiChatResponse {
+  response: string;
+  reasoning_steps: Array<{
+    step_number: number;
+    description: string;
+    type: string;
+    confidence: number;
+  }>;
+  follow_up_questions: string[];
+  investigative_leads: string[];
+  confidence_assessment: {
+    overall_confidence: number;
+    reasoning: string;
+    limitations: string[];
+  };
+  tokenUsage: number;
+  instructor_enabled: boolean;
+}
 
 // Request/Response types
 export interface AuthRequest {

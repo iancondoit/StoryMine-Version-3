@@ -189,22 +189,7 @@ export const ChatInterface: React.FC = () => {
                     </div>
                   </div>
                   
-                  {/* Reasoning Steps */}
-                  {msg.reasoning && msg.reasoning.length > 0 && (
-                    <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <CheckCircle className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-900">Reasoning Steps</span>
-                      </div>
-                      <div className="space-y-1">
-                        {msg.reasoning.map((step, index) => (
-                          <div key={index} className="text-sm text-blue-800">
-                            {step}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
                   
                   {/* Artifacts Generated */}
                   {msg.artifacts && msg.artifacts.length > 0 && (

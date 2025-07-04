@@ -1,92 +1,98 @@
 import { PrismaClient } from '../generated/prisma';
-// import { MistralService } from '../services/mistral-service'; // Temporarily disabled - keeping conversation simple
+import { instructorService } from '../services/instructor-service';
+import { 
+  type JordiResponse, 
+  type JordiInput, 
+  type ConversationContext 
+} from '../models/jordi-personality';
 
 const prisma = new PrismaClient();
-// const mistralService = new MistralService(); // Temporarily disabled
 
-interface JordiResponse {
-  response: string;
-  reasoning: string[];
-  artifacts: any[];
-  tokenUsage: number;
+interface ConversationMemory {
+  messages: Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date;
+  }>;
+  context: ConversationContext | null;
+  research_focus: string[];
+  entity_tracking: Map<string, number>;
+}
+
+interface ScoutData {
+  articles: Array<{
+    id: string;
+    title: string;
+    summary: string;
+    relevance_score: number;
+  }>;
+  entities: Array<{
+    name: string;
+    type: string;
+    relevance_score: number;
+  }>;
 }
 
 export class JordiAgent {
-  private projectMemory: Map<string, any> = new Map();
+  private memory: Map<string, ConversationMemory> = new Map();
+  private maxMemorySize = 20;
 
-  constructor() {
-    console.log('🧠 Jordi Agent initialized');
-  }
-
-  async processMessage(
-    projectId: string,
+  /**
+   * Main chat method with structured personality control
+   */
+  async chat(
     message: string,
+    projectId: string,
     userId: string
-  ): Promise<JordiResponse> {
-    console.log(`📨 Processing message for project ${projectId}`);
-    
+  ): Promise<{
+    response: string;
+    reasoning_steps: Array<{
+      step_number: number;
+      description: string;
+      type: string;
+      confidence: number;
+    }>;
+    follow_up_questions: string[];
+    investigative_leads: string[];
+    confidence_assessment: {
+      overall_confidence: number;
+      reasoning: string;
+      limitations: string[];
+    };
+  }> {
     try {
-      // Handle greetings following the interaction guide
-      const greetingPattern = /^(hi|hello|hey)\s*\.?$/i;
-      if (greetingPattern.test(message.trim())) {
-        return {
-          response: "Hey there. I can help you find and explore stories — or dig into something you're curious about. What's on your mind?",
-          reasoning: ["Greeting detected"],
-          artifacts: [],
-          tokenUsage: 1
-        };
-      }
-
-      // Handle specific topic queries following the interaction guide
-      const messageText = message.toLowerCase().trim();
+      // Get or create conversation memory
+      const conversationKey = `${projectId}-${userId}`;
+      let memory = this.memory.get(conversationKey);
       
-      // Murder queries
-      if (messageText.includes('murder') && messageText.split(' ').length <= 3) {
-        return {
-          response: "That opens up a lot of possibilities. Want something sensational, tragic, or unresolved?",
-          reasoning: ["Topic query about murder"],
-          artifacts: [],
-          tokenUsage: 1
+      if (!memory) {
+        memory = {
+          messages: [],
+          context: null,
+          research_focus: [],
+          entity_tracking: new Map()
         };
+        this.memory.set(conversationKey, memory);
       }
 
-      // Disappearance queries
-      if (messageText.includes('disappear') || messageText.includes('missing')) {
-        return {
-          response: "Plenty of eerie ones. A city councilman vanished on the way to a meeting in 1948 — no body, no note. Should I dig into that one?",
-          reasoning: ["Topic query about disappearances"],
-          artifacts: [],
-          tokenUsage: 1
-        };
-      }
-
-      // General story queries
-      if (messageText.includes('what kind of stories') || messageText.includes('what stories do you have')) {
-        return {
-          response: "Right now I'm loaded with material from the Atlanta Journal-Constitution — mostly covering 1940s and 1950s. Some of it's pretty wild: murders, scandals, missing persons, public coverups. Want to narrow it down?",
-          reasoning: ["General story inquiry"],
-          artifacts: [],
-          tokenUsage: 1
-        };
-      }
-
-      // Police corruption queries
-      if (messageText.includes('police corruption') || messageText.includes('police') && messageText.includes('corruption')) {
-        return {
-          response: "I've seen some odd articles from the '50s involving beatings, bribes, and a few trials. Want me to start lining up a timeline?",
-          reasoning: ["Query about police corruption"],
-          artifacts: [],
-          tokenUsage: 1
-        };
-      }
+      // Add user message to memory
+      memory.messages.push({
+        role: 'user',
+        content: message,
+        timestamp: new Date()
+      });
 
       // Get project context
       const project = await prisma.project.findUnique({
         where: { id: projectId },
         include: {
           artifacts: {
-            orderBy: { createdAt: 'desc' },
-            take: 5
+            select: {
+              id: true,
+              title: true,
+              type: true,
+              content: true
+            }
           }
         }
       });
@@ -95,355 +101,340 @@ export class JordiAgent {
         throw new Error('Project not found');
       }
 
-      // Get diverse Scout data for context based on message keywords
-      let searchQuery = '';
-      
-      // Create a more targeted search based on the message content
-      if (messageText.includes('murder')) {
-        searchQuery = 'murder';
-      } else if (messageText.includes('disappear') || messageText.includes('missing')) {
-        searchQuery = 'missing';
-      } else if (messageText.includes('political') || messageText.includes('scandal')) {
-        searchQuery = 'political';
-      } else if (messageText.includes('police')) {
-        searchQuery = 'police';
-      } else {
-        // Fallback to broader keyword search
-        const keywords = message.toLowerCase().match(/\b(war|civil rights|politics|political|naacp|georgia|congress|military|social|economic|investigation|scandal|conflict|government|court|election|bomb|attack|britain|africa|house|senate|tax|levy|women|commander|medal|service|murder|crime|mystery|unusual|anomalous)\b/g) || [];
-        searchQuery = keywords.length > 0 ? keywords.join(' ') : '';
-      }
-      
-      const scoutData = await this.searchScoutData(searchQuery);
-      
-      // If no specific results, get a diverse sample
-      if (scoutData.length === 0) {
-        const diverseData = await prisma.scoutAnalysis.findMany({
-          where: { isInteresting: true },
-          include: {
-            article: {
-              select: {
-                title: true,
-                content: true,
-                date: true,
-                publication: true
-              }
-            }
-          },
-          orderBy: [
-            { confidence: 'desc' },
-            { narrativeStrength: 'desc' }
-          ],
-          take: 15
-        });
-        scoutData.push(...diverseData);
-      }
-
-      // TODO: Re-enable Mistral later - for now, provide simple conversational responses
-      // const context = this.buildContext(project, scoutData, message);
-      // const mistralResponse = await mistralService.generateResponse(context);
-      
-      // Create a simple conversational response based on Scout data
-      const conversationalResponse = this.createConversationalResponse(message, scoutData);
-      
-      // Store in memory
-      this.updateMemory(projectId, message, conversationalResponse.response);
-      
-      return {
-        response: conversationalResponse.response,
-        reasoning: conversationalResponse.reasoning,
-        artifacts: [], // No artifacts for now - keeping content in conversation
-        tokenUsage: conversationalResponse.tokenUsage
-      };
-    } catch (error) {
-      console.error('Error processing message:', error);
-      
-      // Provide a simple fallback response following the interaction guide
-      return {
-        response: "I'm having trouble accessing my full capabilities right now, but I can still help you explore stories. What's on your mind?",
-        reasoning: ['Fallback response - system limitations'],
-        artifacts: [],
-        tokenUsage: 5
-      };
-    }
-  }
-
-  private createConversationalResponse(message: string, scoutData: any[]): {
-    response: string;
-    reasoning: string[];
-    tokenUsage: number;
-  } {
-    // If no data found, provide a gentle response
-    if (scoutData.length === 0) {
-      return {
-        response: "I'm not finding much on that specific angle right now. Want to try a different approach or topic?",
-        reasoning: ["No relevant Scout data found"],
-        tokenUsage: 5
-      };
-    }
-
-    // Get a few interesting articles to mention conversationally
-    const interestingArticles = scoutData.slice(0, 3);
-    
-    let response = "";
-    const messageText = message.toLowerCase();
-
-    // Handle different types of queries conversationally
-    if (messageText.includes('murder') && messageText.includes('mysterious')) {
-      // Filter for actual murder-related articles
-      const murderArticles = interestingArticles.filter(analysis => 
-        analysis.article.title.toLowerCase().includes('murder') ||
-        analysis.article.title.toLowerCase().includes('kill') ||
-        analysis.article.title.toLowerCase().includes('death') ||
-        analysis.article.title.toLowerCase().includes('found dead') ||
-        analysis.storyTypes?.toLowerCase().includes('crime')
+      // Analyze conversation context using Instructor
+      const conversationContext = await instructorService.analyzeConversationContext(
+        memory.messages,
+        {
+          name: project.title,
+          description: project.description || '',
+          research_goals: [project.title] // Simple goal for now
+        }
       );
-      
-      if (murderArticles.length > 0) {
-        response = "I've got some intriguing unsolved cases from the Atlanta archives. ";
-        
-        const firstCase = murderArticles[0];
-        const year = firstCase.article.date ? new Date(firstCase.article.date).getFullYear() : 'unknown year';
-        response += `There's a ${year} case that really caught my attention - ${firstCase.article.title.replace(/"/g, '')}. `;
-        
-        if (murderArticles.length > 1) {
-          response += `Plus a couple other mysterious deaths from that era. `;
+
+      // Update memory context
+      memory.context = conversationContext;
+
+      // Query Scout data based on message
+      const scoutData = await this.queryScoutData(message, projectId);
+
+      // Build structured input for Instructor
+      const jordiInput: JordiInput = {
+        user_message: message,
+        conversation_context: conversationContext,
+        available_data: scoutData.articles.map(article => ({
+          source: article.title,
+          type: 'article' as const,
+          relevance_score: article.relevance_score,
+          summary: article.summary
+        })),
+        project_context: {
+          name: project.title,
+          description: project.description || '',
+          research_goals: [project.title]
         }
+      };
+
+      // Generate response - try Instructor first, fallback if needed
+      let jordiResponse: any;
+      try {
+        jordiResponse = await instructorService.generateJordiResponse(jordiInput);
+      } catch (instructorError) {
+        console.log('Instructor service unavailable, using fallback response');
         
-        response += "Want me to dig deeper into any of these?";
-      } else {
-        response = "I don't see any obvious murder mysteries in what I'm finding right now. Want me to search for suspicious deaths or unexplained disappearances instead?";
-      }
-    } else if (messageText.includes('political') || messageText.includes('scandal')) {
-      response = "The political scene in 1940s-50s Atlanta had its share of drama. ";
-      
-      if (interestingArticles.length > 0) {
-        const firstArticle = interestingArticles[0];
-        const year = firstArticle.article.date ? new Date(firstArticle.article.date).getFullYear() : 'that era';
-        response += `One case from ${year} involved ${firstArticle.article.title.toLowerCase().replace(/"/g, '')}. `;
-        response += "Should I pull more details on that one?";
-      } else {
-        response += "Should I search for more specific political incidents?";
-      }
-    } else {
-      // General response with story samples
-      response = `I found ${scoutData.length} articles that might interest you. `;
-      
-      if (interestingArticles.length > 0) {
-        const firstArticle = interestingArticles[0];
-        const year = firstArticle.article.date ? new Date(firstArticle.article.date).getFullYear() : 'the period';
-        response += `One from ${year} caught my eye: ${firstArticle.article.title.replace(/"/g, '')}. `;
-        
-        if (interestingArticles.length > 1) {
-          response += `There are a couple others from that era too. `;
+        // Create fallback response with Scout data
+        let responseMessage = '';
+        if (scoutData.articles.length > 0) {
+          responseMessage = `I've found ${scoutData.articles.length} relevant articles from 1940s-50s Atlanta that match your query. Here are some promising leads:\n\n`;
+          
+          // Use the actual article content, not just titles
+          scoutData.articles.slice(0, 3).forEach((article, index) => {
+            responseMessage += `${index + 1}. **${article.title}**\n`;
+            responseMessage += `   ${article.summary}\n\n`;
+          });
+          
+          responseMessage += `These articles from the Scout database could provide excellent documentary material. Which of these stories would you like me to investigate further?`;
+        } else {
+          responseMessage = 'I searched through 568 analyzed articles from 1940s-50s Atlanta but didn\'t find specific matches for your query. Let me try a broader search approach.';
         }
-      }
-      
-      response += "What angle interests you most?";
-    }
-
-    return {
-      response,
-      reasoning: [`Found ${scoutData.length} relevant articles`, "Generated conversational response"],
-      tokenUsage: 10
-    };
-  }
-
-  private buildContext(project: any, scoutData: any[], message: string): string {
-    let context = `You are Jordi, a warm, calm, and insightful story researcher. You are a conversational partner, not a search engine. You are a research assistant, not a trivia bot. You are a thinking agent, not a static interface.
-
-CORE PRINCIPLES:
-- Keep communication natural and lightweight
-- Always nudge toward action or inquiry
-- Gate expensive operations (tokens) behind user intent
-- Think out loud, but don't dump content unless asked
-- Surface insight, not just data
-- Be calm and direct (no exclamation marks unless mimicking a source)
-- Speak like a collaborator: "Want me to check?" not "Here's 47 headlines"
-- Use soft nudges, not assumptions: "Should I start an artifact?" not "Here's a full analysis"
-- Never drop a wall of headlines or data
-
-You have access to material from the Atlanta Journal-Constitution, mostly covering 1940s and 1950s: murders, scandals, missing persons, public coverups.
-
-CONVERSATION EXAMPLES:
-- User: "What about murder?" → "That opens up a lot of possibilities. Want something sensational, tragic, or unresolved?"
-- User: "Tell me about disappearances." → "Plenty of eerie ones. A city councilman vanished on the way to a meeting in 1948 — no body, no note. Should I dig into that one?"
-- User: "What kind of stories do you have?" → "Right now I'm loaded with material from the Atlanta Journal-Constitution — mostly covering 1940s and 1950s. Some of it's pretty wild: murders, scandals, missing persons, public coverups. Want to narrow it down?"
-
-ALWAYS ASK BEFORE:
-- Archive sweeps
-- Article set pulls  
-- Artifact generation (timeline, narrative thread, crosswalk)
-- Any token-heavy operations
-
-Current Project: ${project.title}
-Available Data: ${scoutData.length} relevant articles from 1940s-1950s
-User Message: ${message}
-
-Respond conversationally, offer light story leads, and nudge toward productive exploration. Keep it natural and collaborative.`;
-
-    return context;
-  }
-
-
-
-  private updateMemory(projectId: string, message: string, response: string): void {
-    const memory = this.projectMemory.get(projectId) || { messages: [] };
-    memory.messages.push(
-      { role: 'user', content: message, timestamp: new Date().toISOString() },
-      { role: 'assistant', content: response, timestamp: new Date().toISOString() }
-    );
-    this.projectMemory.set(projectId, memory);
-  }
-
-  private estimateTokenUsage(text: string): number {
-    // Rough estimation: ~4 characters per token
-    return Math.ceil(text.length / 4);
-  }
-
-  async clearMemory(projectId: string): Promise<void> {
-    console.log(`🗑️ Clearing memory for project ${projectId}`);
-    this.projectMemory.delete(projectId);
-    
-    // Also clear from database
-    await prisma.conversation.deleteMany({
-      where: { projectId }
-    });
-  }
-
-  async saveMemoryToDatabase(projectId: string, userId: string): Promise<void> {
-    const memory = this.projectMemory.get(projectId);
-    if (!memory) return;
-
-         try {
-       // Find existing conversation
-       const existing = await prisma.conversation.findFirst({
-         where: { projectId, userId }
-       });
-
-       if (existing) {
-         await prisma.conversation.update({
-           where: { id: existing.id },
-           data: {
-             messages: JSON.stringify(memory.messages),
-             context: JSON.stringify(memory.context || {}),
-             updatedAt: new Date()
-           }
-         });
-       } else {
-         await prisma.conversation.create({
-           data: {
-             projectId,
-             userId,
-             messages: JSON.stringify(memory.messages),
-             context: JSON.stringify(memory.context || {})
-           }
-         });
-       }
-     } catch (error) {
-       console.error('Error saving memory to database:', error);
-     }
-  }
-
-  async searchScoutData(query: string): Promise<any[]> {
-    try {
-      let searchResults;
-      
-      if (!query || query.trim().length === 0) {
-        // If no specific query, return a diverse sample of interesting articles
-        searchResults = await prisma.scoutAnalysis.findMany({
-          where: {
-            isInteresting: true,
-            documentaryPotential: {
-              in: ['YES', 'MAYBE']
-            }
-          },
-          include: {
-            article: {
-              select: {
-                title: true,
-                date: true,
-                publication: true,
-                content: true
-              }
-            }
-          },
-          orderBy: [
-            { confidence: 'desc' },
-            { narrativeStrength: 'desc' }
+          
+        jordiResponse = {
+          message: responseMessage,
+          reasoning_steps: [{
+            step_number: 1,
+            description: `Searched Scout database for keywords: ${this.extractKeywords(message).join(', ')}`,
+            type: 'analysis',
+            confidence: 0.8
+          }, {
+            step_number: 2,
+            description: `Found ${scoutData.articles.length} relevant articles with content analysis`,
+            type: 'evidence_review',
+            confidence: 0.9
+          }],
+          follow_up_questions: scoutData.articles.length > 0 ? [
+            "Which of these stories interests you most?",
+            "Would you like me to look for connections between these stories?",
+            "Are you interested in the social context of these events?"
+          ] : [
+            "What specific topics or themes should I search for?",
+            "Are you interested in crime, politics, social issues, or other areas?"
           ],
-          take: 30
-        });
-      } else {
-        // Search with keywords (SQLite case-insensitive search)
-        searchResults = await prisma.scoutAnalysis.findMany({
-          where: {
-            OR: [
-              {
-                article: {
-                  title: {
-                    contains: query
-                  }
-                }
-              },
-              {
-                article: {
-                  content: {
-                    contains: query
-                  }
-                }
-              },
-              {
-                reasoning: {
-                  contains: query
-                }
-              },
-              {
-                storyTypes: {
-                  contains: query
-                }
-              }
-            ]
-          },
-          include: {
-            article: {
-              select: {
-                title: true,
-                date: true,
-                publication: true,
-                content: true
-              }
-            }
-          },
-          orderBy: { confidence: 'desc' },
-          take: 25
-        });
+          investigative_leads: scoutData.articles.slice(0, 3).map(a => `Deep dive: ${a.title}`),
+          confidence_assessment: {
+            overall_confidence: scoutData.articles.length > 0 ? 0.8 : 0.5,
+            reasoning: `Working with historical Scout data from 568 analyzed articles, found ${scoutData.articles.length} relevant matches`,
+            limitations: ["Limited to available historical records", "Analysis based on text patterns", "Some articles may have incomplete content"]
+          }
+        };
       }
 
-      return searchResults;
-    } catch (error) {
-      console.error('Error searching Scout data:', error);
-      return [];
-    }
-  }
-
-  async getScoutStats(): Promise<any> {
-    try {
-      const totalArticles = await prisma.sourceArticle.count();
-      const analyzedArticles = await prisma.scoutAnalysis.count();
-      const interestingArticles = await prisma.scoutAnalysis.count({
-        where: { isInteresting: true }
+      // Add assistant message to memory
+      memory.messages.push({
+        role: 'assistant',
+        content: jordiResponse.message,
+        timestamp: new Date()
       });
 
+      // Store conversation in database
+      await this.storeConversation(projectId, userId, message, jordiResponse.message);
+
+      // Update research focus based on response
+      this.updateResearchFocus(memory, jordiResponse);
+
+      // Maintain memory size
+      this.maintainMemorySize(memory);
+
       return {
-        totalArticles,
-        analyzedArticles,
-        interestingArticles,
-        interestingPercentage: analyzedArticles > 0 ? 
-          ((interestingArticles / analyzedArticles) * 100).toFixed(1) : '0'
+        response: jordiResponse.message,
+        reasoning_steps: jordiResponse.reasoning_steps,
+        follow_up_questions: jordiResponse.follow_up_questions,
+        investigative_leads: jordiResponse.investigative_leads,
+        confidence_assessment: jordiResponse.confidence_assessment
+      };
+
+    } catch (error) {
+      console.error('Jordi Agent error:', error);
+      
+      // Fallback response with basic personality
+      return {
+        response: "I apologize, but I'm having trouble processing your request right now. Let me try to help you with what I can gather from our conversation so far.",
+        reasoning_steps: [{
+          step_number: 1,
+          description: "Encountered technical difficulty, providing fallback response",
+          type: "analysis",
+          confidence: 0.3
+        }],
+        follow_up_questions: ["Could you rephrase your question?", "What specific aspect would you like me to focus on?"],
+        investigative_leads: ["Technical issue to investigate", "User query context to review"],
+        confidence_assessment: {
+          overall_confidence: 0.3,
+          reasoning: "Technical error occurred during processing",
+          limitations: ["Unable to access full analytical capabilities", "Limited context processing"]
+        }
+      };
+    }
+  }
+
+  /**
+   * Query Scout data for relevant context
+   */
+  private async queryScoutData(message: string, projectId: string): Promise<ScoutData> {
+    try {
+      // Simple keyword extraction for now
+      const keywords = this.extractKeywords(message);
+      
+      // Query articles that might be relevant (SQLite doesn't support mode: 'insensitive')
+      const searchConditions: any[] = [];
+      keywords.forEach(keyword => {
+        searchConditions.push(
+          { title: { contains: keyword } },
+          { title: { contains: keyword.toUpperCase() } },
+          { title: { contains: keyword.toLowerCase() } },
+          { content: { contains: keyword } },
+          { content: { contains: keyword.toUpperCase() } },
+          { content: { contains: keyword.toLowerCase() } }
+        );
+      });
+
+      const articles = await prisma.sourceArticle.findMany({
+        where: {
+          OR: searchConditions
+        },
+        include: {
+          scoutAnalysis: true
+        },
+        take: 10
+      });
+
+      // Convert to ScoutData format
+      const scoutData: ScoutData = {
+        articles: articles.map((article: any) => ({
+          id: article.id,
+          title: article.title || 'Untitled Article',
+          summary: article.content ? article.content.substring(0, 300) + '...' : 'No content available',
+          relevance_score: article.scoutAnalysis?.confidence || 0.5
+        })),
+        entities: [] // Could be expanded later
+      };
+
+      console.log(`Found ${articles.length} relevant articles for keywords: ${keywords.join(', ')}`);
+      
+      return scoutData;
+    } catch (error) {
+      console.error('Scout data query error:', error);
+      return { articles: [], entities: [] };
+    }
+  }
+
+  /**
+   * Extract keywords from user message
+   */
+  private extractKeywords(message: string): string[] {
+    // Simple keyword extraction - could be improved with NLP
+    const words = message.toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(word => word.length > 3);
+    
+    // Remove common words
+    const commonWords = ['that', 'this', 'with', 'have', 'will', 'from', 'they', 'been', 'said', 'each', 'which', 'there', 'what', 'were', 'could', 'would', 'should'];
+    
+    return words.filter(word => !commonWords.includes(word));
+  }
+
+  /**
+   * Store conversation in database
+   */
+  private async storeConversation(
+    projectId: string,
+    userId: string,
+    userMessage: string,
+    assistantMessage: string
+  ): Promise<void> {
+    try {
+      // Ensure project exists, create if it doesn't
+      await prisma.project.upsert({
+        where: { id: projectId },
+        update: {},
+        create: {
+          id: projectId,
+          title: `Project ${projectId}`,
+          description: 'Auto-created project',
+          userId,
+          status: 'ACTIVE'
+        }
+      });
+
+      // Create conversation
+      await prisma.conversation.create({
+        data: {
+          projectId,
+          userId,
+          messages: JSON.stringify([
+            { role: 'user', content: userMessage, timestamp: new Date() },
+            { role: 'assistant', content: assistantMessage, timestamp: new Date() }
+          ])
+        }
+      });
+    } catch (error) {
+      console.error('Failed to store conversation:', error);
+      // Don't throw - conversation storage is not critical
+    }
+  }
+
+  /**
+   * Update research focus based on Jordi's response
+   */
+  private updateResearchFocus(memory: ConversationMemory, response: JordiResponse): void {
+    // Add investigative leads to research focus
+    response.investigative_leads.forEach(lead => {
+      if (!memory.research_focus.includes(lead)) {
+        memory.research_focus.push(lead);
+      }
+    });
+
+    // Keep only recent focus areas
+    if (memory.research_focus.length > 10) {
+      memory.research_focus = memory.research_focus.slice(-10);
+    }
+  }
+
+  /**
+   * Maintain memory size limits
+   */
+  private maintainMemorySize(memory: ConversationMemory): void {
+    if (memory.messages.length > this.maxMemorySize) {
+      // Keep system messages and recent messages
+      const systemMessages = memory.messages.filter(msg => msg.role === 'system');
+      const recentMessages = memory.messages.slice(-this.maxMemorySize + systemMessages.length);
+      memory.messages = [...systemMessages, ...recentMessages];
+    }
+  }
+
+  /**
+   * Clear conversation memory for a project
+   */
+  async clearMemory(projectId: string, userId: string): Promise<void> {
+    const conversationKey = `${projectId}-${userId}`;
+    this.memory.delete(conversationKey);
+  }
+
+  /**
+   * Get conversation history
+   */
+  getConversationHistory(projectId: string, userId: string): Array<{role: string, content: string, timestamp: Date}> {
+    const conversationKey = `${projectId}-${userId}`;
+    const memory = this.memory.get(conversationKey);
+    return memory?.messages || [];
+  }
+
+  /**
+   * Get current research focus
+   */
+  getResearchFocus(projectId: string, userId: string): string[] {
+    const conversationKey = `${projectId}-${userId}`;
+    const memory = this.memory.get(conversationKey);
+    return memory?.research_focus || [];
+  }
+
+  /**
+   * Health check for the agent
+   */
+  async healthCheck(): Promise<{
+    status: string;
+    memory_usage: number;
+    instructor_available: boolean;
+  }> {
+    try {
+      // Test Instructor service
+      const testInput: JordiInput = {
+        user_message: "Hello, this is a test",
+        conversation_context: {
+          user_expertise: 'novice',
+          conversation_stage: 'opening',
+          research_focus: [],
+          user_intent: 'general_inquiry'
+        },
+        available_data: [],
+        project_context: {
+          name: "Test Project",
+          description: "Test description",
+          research_goals: ["Test goal"]
+        }
+      };
+
+      await instructorService.generateJordiResponse(testInput);
+
+      return {
+        status: 'healthy',
+        memory_usage: this.memory.size,
+        instructor_available: true
       };
     } catch (error) {
-      console.error('Error getting Scout stats:', error);
-      return null;
+      return {
+        status: 'degraded',
+        memory_usage: this.memory.size,
+        instructor_available: false
+      };
     }
   }
 }

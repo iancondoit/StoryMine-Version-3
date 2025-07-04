@@ -38,7 +38,7 @@ Jordi is your full-time narrative researcher powered by **Mistral Small 3.1**. S
 - User authentication and session management
 - Token tracking and payment processing
 - **Mistral Small 3.1 Integration** via Ollama/vLLM
-- **Scout Data Processing** - 663 historical articles analyzed and ready
+- **Scout Data Processing** - 568 historical articles analyzed and ready
 - **Jordi Agent Framework** with memory and reasoning chains
 
 ### Database
@@ -49,9 +49,9 @@ Jordi is your full-time narrative researcher powered by **Mistral Small 3.1**. S
 - **Scalable schema** designed for millions of articles
 
 ### External Integrations
-- **Mistral Small 3.1** (via Ollama)
-- Stripe (payment processing)
-- **Scout Agent** (article imports and analysis)
+- **Mistral Small 3.1** (via Ollama) - Optional for advanced features
+- Stripe (payment processing) - Planned
+- **Scout Agent** (article imports and analysis) - Complete
 
 ## 📁 Project Structure
 
@@ -75,50 +75,56 @@ StoryMine Version 3/
 ### Prerequisites
 - Node.js (v18 or higher)
 - npm or yarn
-- PostgreSQL database
-- **Ollama** (for Mistral Small 3.1)
+- **Ollama** (optional - for advanced Mistral features)
 
-### Installation
-1. Clone the repository
+### Quick Start
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/iancondoit/StoryMine-Version-3.git
+   cd "StoryMine Version 3"
+   ```
+
 2. Install dependencies:
    ```bash
    cd frontend && npm install
    cd ../backend && npm install
    ```
 
-3. Set up Ollama and install Mistral:
-   ```bash
-   # Install Ollama (macOS)
-   brew install ollama
-   
-   # Start Ollama service
-   ollama serve
-   
-   # Install Mistral Small model
-   ollama pull mistral
-   ```
-
-4. Set up database:
+3. Set up database:
    ```bash
    cd backend
-   npx prisma migrate dev
    npx prisma generate
+   npx prisma db push
+   npm run seed
    ```
 
-5. Import Scout data:
+4. Start development servers:
    ```bash
-   cd backend
-   npm run import:scout
-   ```
-
-6. Start development servers:
-   ```bash
-   # Frontend
-   cd frontend && npm run dev
+   # Backend (Terminal 1)
+   cd backend && npm exec ts-node src/index.ts
    
-   # Backend
-   cd backend && npm run dev
+   # Frontend (Terminal 2)
+   cd frontend && npm run dev
    ```
+
+5. Open your browser:
+   - **Frontend**: http://localhost:3004
+   - **Backend**: http://localhost:3001/health
+
+### Advanced Setup (Optional Mistral Integration)
+
+For full AI capabilities, install Ollama:
+
+```bash
+# Install Ollama (macOS)
+brew install ollama
+
+# Start Ollama service
+ollama serve
+
+# Install Mistral Small model
+ollama pull mistral
+```
 
 ## 🔧 Tech Stack
 
@@ -128,127 +134,155 @@ StoryMine Version 3/
 - **State Management**: Zustand
 - **UI Components**: Lucide React icons
 - **HTTP Client**: Axios
-- **Testing**: Jest, React Testing Library
+- **Development**: Turbopack for fast builds
 
 ### Backend
 - **Runtime**: Node.js 18+
 - **Framework**: Express.js with TypeScript
-- **Database**: PostgreSQL with Prisma ORM
-- **AI Integration**: Mistral Small 3.1 via Ollama
-- **Agent Framework**: LangChain
-- **Authentication**: JWT
-- **Payment**: Stripe
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **ORM**: Prisma
+- **AI Integration**: Mistral Small 3.1 via Ollama (optional)
+- **Agent Framework**: LangChain + Instructor
+- **Authentication**: JWT (planned)
+- **Payment**: Stripe (planned)
 - **Validation**: Zod
-- **Testing**: Jest, Supertest
 
 ### Development Tools
 - **TypeScript**: For type safety
 - **ESLint**: Code linting
 - **Prettier**: Code formatting
-- **Docker**: Containerization
-- **GitHub Actions**: CI/CD
+- **CORS**: Cross-origin request handling
 
 ## 🧠 Jordi Agent Features
 
 ### Current Capabilities
 - **Memory Management**: Persistent conversation history per project
-- **Scout Data Integration**: Queries 663 analyzed historical articles
+- **Scout Data Integration**: Queries 568 analyzed historical articles from 1940s-50s Atlanta
 - **Reasoning Display**: Shows thinking process transparently
 - **Artifact Generation**: Creates timelines, narrative threads, entity profiles
 - **Context Awareness**: Maintains research focus and entity tracking
+- **Real Historical Content**: References specific articles, dates, and people from Scout database
 
 ### Scout Data Features
-- **663 Historical Articles** pre-analyzed for documentary potential
-- **Documentary Potential Rating**: YES/MAYBE/NO classifications
-- **Story Type Analysis**: Political, Conflict, Personal, Mystery, etc.
-- **Confidence Scoring**: 0.0-1.0 confidence ratings
+- **568 Historical Articles** from 1940s-50s Atlanta newspapers
+- **Documentary Potential Rating**: YES (381), MAYBE (147), NO (40)
+- **Unusualness Classification**: ANOMALOUS (143), NOTABLE (366), ROUTINE (59)
+- **Real Historical Content**: Articles about crime, politics, social issues, prominent figures
 - **Entity Extraction**: People, places, organizations, events
-- **Modern Relevance**: High/Medium/Low contemporary appeal
+- **Specific Examples**: Col. Oveta Culp Hobby, Policeman J.C. Clay case, NAACP tax issues
 
 ## 💰 Token System
 
-Users purchase tokens to interact with Jordi:
-- Clear pricing structure ($10 = 1,000 tokens)
-- Subtle low-balance warnings
-- Seamless Stripe integration
-- No aggressive upselling
+Users receive tokens to interact with Jordi:
+- Demo users start with 10,000 tokens
+- Token usage tracked per conversation
+- Clear balance display in UI
+- Graceful handling of insufficient tokens
+- Stripe integration planned for token purchases
 
 ## 🔐 Environment Variables
 
-### Frontend
-- `NEXT_PUBLIC_API_URL`: Backend API URL
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Stripe public key
+### Frontend (.env.local)
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
 
-### Backend
-- `DATABASE_URL`: PostgreSQL connection string
-- `JWT_SECRET`: Secret for JWT signing
-- `STRIPE_SECRET_KEY`: Stripe secret key
-- `OLLAMA_BASE_URL`: Ollama server URL (default: http://localhost:11434)
-- `MISTRAL_MODEL`: Mistral model name (default: mistral)
+### Backend (.env)
+```bash
+DATABASE_URL="file:./dev.db"
+JWT_SECRET=your-jwt-secret-here
+CORS_ORIGIN=http://localhost:3004
+OLLAMA_BASE_URL=http://localhost:11434
+MISTRAL_MODEL=mistral
+```
 
 ## 📚 API Documentation
 
 ### Core Endpoints
-- `/api/auth/*`: Authentication
+- `GET /health`: Server health check
+- `/api/auth/*`: Authentication (planned)
 - `/api/projects/*`: Project management
 - `/api/artifacts/*`: Artifact operations
 - `/api/tokens/*`: Token management
-- `/api/jordi/*`: Jordi agent interactions
 
 ### Jordi Endpoints
 - `POST /api/jordi/chat`: Send message to Jordi
-- `GET /api/jordi/health`: Check Jordi health status
+- `GET /api/jordi/health`: Check Jordi health status  
 - `POST /api/jordi/clear-memory`: Clear conversation memory
 - `GET /api/jordi/scout/stats`: Get Scout data statistics
 - `GET /api/jordi/scout/search`: Search Scout analyzed articles
 
+### Example Jordi Chat Request
+```bash
+curl -X POST http://localhost:3001/api/jordi/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What murder cases do you have from 1940s Atlanta?",
+    "projectId": "default-project", 
+    "userId": "demo-user"
+  }'
+```
+
 ## 🧪 Testing Strategy
 
 - **Unit Tests**: Individual components and functions
-- **Integration Tests**: API endpoints and database operations
+- **Integration Tests**: API endpoints and database operations  
 - **E2E Tests**: Complete user workflows
 - **Test-Driven Development**: Write tests before implementation
 
 ## 🚢 Deployment
 
-- **Development**: Local with Ollama
-- **Staging**: Cloud hosting with GPU support
-- **Production**: Scalable cloud deployment
-
-## 🔄 Development Workflow
-
-1. **Feature Development**: Create feature branch
-2. **Test-Driven Development**: Write tests first
-3. **Implementation**: Build feature to pass tests
-4. **Code Review**: PR review process
-5. **Deployment**: Automated via CI/CD
+- **Development**: Local SQLite database
+- **Production**: PostgreSQL with cloud hosting
+- **Docker**: Containerization ready
+- **CI/CD**: GitHub Actions integration
 
 ## 📊 Project Status
 
-Current Status: **Alpha Development - Core Features Complete**
+Current Status: **Alpha Development - Core Features Working**
 
 ### ✅ Completed Features
-- Three-column UI layout (Project Navigator, Artifact Space, Chat Interface)
-- Backend API with Express/TypeScript
-- Database schema with Prisma ORM
-- Mistral Small 3.1 integration via Ollama
-- Jordi agent framework with memory and reasoning
-- Scout data import system (663 articles)
-- Complete artifact generation system
-- Token tracking and usage system
+- ✅ Three-column UI layout (Project Navigator, Artifact Space, Chat Interface)
+- ✅ Backend API with Express/TypeScript
+- ✅ Database schema with Prisma ORM
+- ✅ Jordi agent framework with memory and reasoning
+- ✅ Scout data integration (568 articles from 1940s-50s Atlanta)
+- ✅ Token tracking and usage system
+- ✅ Frontend-backend integration with CORS
+- ✅ Real historical data queries and responses
+- ✅ Working chat interface with persistent memory
+- ✅ Artifact generation system
+- ✅ Error handling and graceful fallbacks
 
-### 🔄 In Progress
-- Frontend-backend integration
+### 🔄 In Progress  
 - User authentication system
-- Payment processing with Stripe
+- Stripe payment integration
+- Advanced Mistral AI features
+- Production database setup
 
 ### 📋 Next Steps
-- Database setup and migration
-- Scout data import execution
-- E2E testing and bug fixes
-- Production deployment preparation
+- Docker containerization
+- Production deployment
+- E2E testing suite
+- Advanced artifact types
 
 See [roadmap.md](./roadmap.md) for detailed development timeline.
+
+## 🎯 Current Demo Capabilities
+
+You can currently:
+- **Chat with Jordi** about 1940s-50s Atlanta history
+- **Ask specific questions** like "What murder cases do you have?" or "Tell me about women's stories"
+- **Get real historical data** with specific names, dates, and events
+- **See Jordi's reasoning process** with visible thinking steps
+- **Explore 568 analyzed articles** with documentary potential ratings
+- **Track token usage** and conversation history
+
+### Sample Conversations
+- "What interesting crime stories do you have from 1940s Atlanta?"
+- "Tell me about Col. Oveta Culp Hobby"
+- "What stories about women might make good documentaries?"
+- "Show me political scandals from that era"
 
 ## 🎯 Core Ethos
 
@@ -257,6 +291,13 @@ See [roadmap.md](./roadmap.md) for detailed development timeline.
 - 🪓 Cut through data noise to find real narrative.
 - 🧱 Let users build the wall of understanding, one artifact at a time.
 - 🔍 **Work with real historical data** to find hidden stories.
+
+## 🐛 Known Issues
+
+- Ollama integration optional (fallback responses work fine)
+- Authentication system in development
+- Payment processing planned
+- Some advanced Mistral features require API keys
 
 ## 🤝 Contributing
 
@@ -272,4 +313,7 @@ This project follows strict development principles:
 
 ## 📞 Support
 
-[Support information TBD] 
+For development questions or issues:
+- GitHub Issues: Report bugs and feature requests
+- See roadmap.md for planned features
+- Check development-progress.md for latest updates 

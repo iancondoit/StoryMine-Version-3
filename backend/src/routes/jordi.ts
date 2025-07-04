@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '../generated/prisma';
 import { JordiAgent } from '../agents/jordi-agent';
+import { jordiLangChainAgent } from '../agents/jordi-langchain-agent';
 import { MistralService } from '../services/mistral-service';
 import { z } from 'zod';
 
@@ -20,7 +21,7 @@ const clearMemorySchema = z.object({
   projectId: z.string()
 });
 
-// POST /api/jordi/chat - Send message to Jordi
+// POST /api/jordi/chat - Send message to Jordi with structured personality control
 router.post('/chat', async (req, res) => {
   try {
     const { message, projectId = 'default', userId } = chatSchema.parse(req.body);
@@ -53,20 +54,29 @@ router.post('/chat', async (req, res) => {
       });
     }
 
-    // Process message with Jordi
-    const result = await jordiAgent.processMessage(projectId, message, actualUserId);
+    // Process message with Instructor-enhanced Jordi
+    const result = await jordiAgent.chat(message, projectId, actualUserId);
 
-    // Track token usage - Fix metadata type issue
+    // Estimate token usage (improved calculation)
+    const estimatedTokens = Math.ceil(
+      (message.length + result.response.length + 
+       result.reasoning_steps.length * 50) / 4
+    );
+
+    // Track token usage with structured metadata
     await prisma.tokenUsage.create({
       data: {
         userId: actualUserId,
-        tokensUsed: result.tokenUsage,
-        operation: 'jordi_conversation',
+        tokensUsed: estimatedTokens,
+        operation: 'jordi_instructor_conversation',
         projectId,
         metadata: JSON.stringify({
-          message: message.substring(0, 100), // First 100 chars for reference
-          artifactsGenerated: result.artifacts.length,
-          reasoningSteps: result.reasoning.length
+          message: message.substring(0, 100),
+          reasoning_steps: result.reasoning_steps.length,
+          follow_up_questions: result.follow_up_questions.length,
+          investigative_leads: result.investigative_leads.length,
+          confidence: result.confidence_assessment.overall_confidence,
+          instructor_enabled: true
         })
       }
     });
@@ -76,25 +86,25 @@ router.post('/chat', async (req, res) => {
       where: { userId: actualUserId },
       data: {
         totalUsed: {
-          increment: result.tokenUsage
+          increment: estimatedTokens
         },
         balance: {
-          decrement: result.tokenUsage
+          decrement: estimatedTokens
         },
         lastUsed: new Date()
       }
     });
 
-    // Save conversation to database
-    await jordiAgent.saveMemoryToDatabase(projectId, actualUserId);
-
     return res.json({
       success: true,
       data: {
         response: result.response,
-        reasoning: result.reasoning,
-        artifacts: result.artifacts,
-        tokenUsage: result.tokenUsage
+        reasoning_steps: result.reasoning_steps,
+        follow_up_questions: result.follow_up_questions,
+        investigative_leads: result.investigative_leads,
+        confidence_assessment: result.confidence_assessment,
+        tokenUsage: estimatedTokens,
+        instructor_enabled: true
       }
     });
 
@@ -115,17 +125,113 @@ router.post('/chat', async (req, res) => {
   }
 });
 
-// GET /api/jordi/health - Check Jordi health status
+// POST /api/jordi/chat-langchain - Send message to Jordi using LangChain
+router.post('/chat-langchain', async (req, res) => {
+  try {
+    const { message, projectId = 'default', userId } = chatSchema.parse(req.body);
+
+    // Handle demo user case - look up by email if userId is 'demo-user'
+    let actualUserId = userId;
+    if (userId === 'demo-user') {
+      const demoUser = await prisma.user.findFirst({
+        where: { email: 'demo@storymine.com' }
+      });
+      
+      if (!demoUser) {
+        return res.status(404).json({
+          error: 'Demo user not found',
+          message: 'Please contact support'
+        });
+      }
+      actualUserId = demoUser.id;
+    }
+
+    // Check user's token balance
+    const tokenBalance = await prisma.tokenBalance.findUnique({
+      where: { userId: actualUserId }
+    });
+
+    if (!tokenBalance || tokenBalance.balance < 10) {
+      return res.status(402).json({
+        error: 'Insufficient tokens',
+        message: 'Please purchase more tokens to continue'
+      });
+    }
+
+    // Process message with LangChain Jordi
+    const result = await jordiLangChainAgent.processMessage(projectId, message, actualUserId);
+
+    // Track token usage
+    await prisma.tokenUsage.create({
+      data: {
+        userId: actualUserId,
+        tokensUsed: result.tokenUsage,
+        operation: 'jordi_langchain_conversation',
+        projectId,
+        metadata: JSON.stringify({
+          message: message.substring(0, 100), // First 100 chars for reference
+          artifactsGenerated: result.artifacts.length,
+          reasoningSteps: result.reasoning.length,
+          langchainEnabled: true
+        })
+      }
+    });
+
+    // Update user's token balance
+    await prisma.tokenBalance.update({
+      where: { userId: actualUserId },
+      data: {
+        totalUsed: {
+          increment: result.tokenUsage
+        },
+        balance: {
+          decrement: result.tokenUsage
+        },
+        lastUsed: new Date()
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        response: result.response,
+        reasoning: result.reasoning,
+        artifacts: result.artifacts,
+        tokenUsage: result.tokenUsage,
+        langchainEnabled: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in Jordi LangChain chat:', error);
+    
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        details: error.errors
+      });
+    }
+
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// GET /api/jordi/health - Check Jordi health status with Instructor integration
 router.get('/health', async (req, res) => {
   try {
     const mistralStatus = await mistralService.checkModelAvailability();
     const dbStatus = await prisma.$queryRaw`SELECT 1` ? true : false;
+    const jordiHealthStatus = await jordiAgent.healthCheck();
 
     res.json({
       success: true,
       data: {
         mistral: mistralStatus,
         database: dbStatus,
+        jordi: jordiHealthStatus,
         timestamp: new Date().toISOString()
       }
     });
@@ -142,8 +248,20 @@ router.get('/health', async (req, res) => {
 router.post('/clear-memory', async (req, res) => {
   try {
     const { projectId } = clearMemorySchema.parse(req.body);
+    
+    // Use demo user for clear memory - could be enhanced to accept userId
+    const demoUser = await prisma.user.findFirst({
+      where: { email: 'demo@storymine.com' }
+    });
+    
+    if (!demoUser) {
+      return res.status(404).json({
+        error: 'Demo user not found',
+        message: 'Please contact support'
+      });
+    }
 
-    await jordiAgent.clearMemory(projectId);
+    await jordiAgent.clearMemory(projectId, demoUser.id);
 
     return res.json({
       success: true,
