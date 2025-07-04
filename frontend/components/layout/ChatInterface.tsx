@@ -73,28 +73,7 @@ export const ChatInterface: React.FC = () => {
       const introMessage: Message = {
         id: 'intro-1',
         role: 'assistant',
-        content: `Hello! I'm Jordi, your AI research assistant specialized in investigative journalism and historical analysis.
-
-**How StoryMine Works:**
-StoryMine is your investigative research platform that helps you discover hidden narratives buried in historical records. I analyze thousands of documents to find patterns, connections, and stories that might otherwise go unnoticed.
-
-**My Dataset:**
-• **${datasetStats.totalArticles.toLocaleString()} total articles** from historical archives
-• **${datasetStats.analyzedArticles.toLocaleString()} analyzed articles** processed by Scout (our background analysis agent)
-• **${datasetStats.interestingArticles.toLocaleString()} interesting articles** flagged for investigative potential
-• **${datasetStats.interestingPercentage}% discovery rate** of potentially compelling stories
-
-**What I Can Help You With:**
-- **Timeline Creation**: Organize events chronologically to reveal patterns
-- **Narrative Thread Analysis**: Connect scattered information into coherent stories  
-- **Source Crosswalks**: Compare multiple sources to find discrepancies or confirmations
-- **Entity Tracking**: Follow people, places, and organizations across time
-- **Hypothesis Trees**: Build and test investigative theories
-
-**My Approach:**
-I don't just search for keywords - I understand context, detect anomalies, and identify stories with documentary potential. I'll show you my reasoning process and generate research artifacts to help you investigate deeper.
-
-What story would you like to uncover today?`,
+        content: `I'm here if you want to dig into something or explore a thread.`,
         timestamp: new Date(),
         reasoning: []
       };

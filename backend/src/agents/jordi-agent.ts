@@ -26,6 +26,60 @@ export class JordiAgent {
     console.log(`📨 Processing message for project ${projectId}`);
     
     try {
+      // Handle greetings following the interaction guide
+      const greetingPattern = /^(hi|hello|hey)\s*\.?$/i;
+      if (greetingPattern.test(message.trim())) {
+        return {
+          response: "Hey there. I can help you find and explore stories — or dig into something you're curious about. What's on your mind?",
+          reasoning: ["Greeting detected"],
+          artifacts: [],
+          tokenUsage: 1
+        };
+      }
+
+      // Handle specific topic queries following the interaction guide
+      const messageText = message.toLowerCase().trim();
+      
+      // Murder queries
+      if (messageText.includes('murder') && messageText.split(' ').length <= 3) {
+        return {
+          response: "That opens up a lot of possibilities. Want something sensational, tragic, or unresolved?",
+          reasoning: ["Topic query about murder"],
+          artifacts: [],
+          tokenUsage: 1
+        };
+      }
+
+      // Disappearance queries
+      if (messageText.includes('disappear') || messageText.includes('missing')) {
+        return {
+          response: "Plenty of eerie ones. A city councilman vanished on the way to a meeting in 1948 — no body, no note. Should I dig into that one?",
+          reasoning: ["Topic query about disappearances"],
+          artifacts: [],
+          tokenUsage: 1
+        };
+      }
+
+      // General story queries
+      if (messageText.includes('what kind of stories') || messageText.includes('what stories do you have')) {
+        return {
+          response: "Right now I'm loaded with material from the Atlanta Journal-Constitution — mostly covering 1940s and 1950s. Some of it's pretty wild: murders, scandals, missing persons, public coverups. Want to narrow it down?",
+          reasoning: ["General story inquiry"],
+          artifacts: [],
+          tokenUsage: 1
+        };
+      }
+
+      // Police corruption queries
+      if (messageText.includes('police corruption') || messageText.includes('police') && messageText.includes('corruption')) {
+        return {
+          response: "I've seen some odd articles from the '50s involving beatings, bribes, and a few trials. Want me to start lining up a timeline?",
+          reasoning: ["Query about police corruption"],
+          artifacts: [],
+          tokenUsage: 1
+        };
+      }
+
       // Get project context
       const project = await prisma.project.findUnique({
         where: { id: projectId },
@@ -88,155 +142,48 @@ export class JordiAgent {
     } catch (error) {
       console.error('Error processing message:', error);
       
-      // Try to provide a useful fallback response with actual data
-      try {
-        // Check if the user is asking about something specific
-        // Extract key terms for better search
-        const keywords = message.toLowerCase().match(/\b(war|civil rights|politics|political|naacp|georgia|congress|military|social|economic|investigation|scandal|conflict|government|court|election|bomb|attack|britain|africa|house|senate|tax|levy|women|commander|medal|service)\b/g) || [];
-        const searchQuery = keywords.length > 0 ? keywords.join(' ') : '';
-        
-        const searchResults = await this.searchScoutData(searchQuery);
-        
-        if (searchResults.length > 0) {
-          // User seems to be asking about something we have data for
-          let response = `Great question! I found ${searchResults.length} relevant articles that caught my attention:
-
-`;
-          
-          searchResults.slice(0, 5).forEach((analysis, index) => {
-            const date = analysis.article.date ? new Date(analysis.article.date).getFullYear() : 'Unknown';
-            const potentialText = analysis.documentaryPotential === 'YES' ? '🎬 High documentary potential' : 
-                                  analysis.documentaryPotential === 'MAYBE' ? '📽️ Some documentary potential' : 
-                                  '📄 Interesting for context';
-            
-            response += `**${index + 1}. "${analysis.article.title}" (${date})**
-${potentialText} • ${analysis.article.publication}
-`;
-            
-            if (analysis.reasoning && analysis.reasoning.length > 50) {
-              const reasoning = analysis.reasoning.substring(0, 120);
-              response += `💡 *${reasoning}${reasoning.length === 120 ? '...' : ''}*
-
-`;
-            }
-          });
-
-          if (searchResults.length > 5) {
-            response += `...and ${searchResults.length - 5} more articles I could explore!
-
-`;
-          }
-
-          response += `What catches your eye? I can dive deeper into any of these stories, look for connections between them, or search for different angles on this topic. What would you find most interesting?`;
-
-          return {
-            response,
-            reasoning: [`Found ${searchResults.length} relevant articles in database`, 'Fallback mode - full AI capabilities unavailable'],
-            artifacts: [],
-            tokenUsage: 60
-          };
-        } else {
-          // No specific search results, provide general overview
-          const stats = await this.getScoutStats();
-          const interestingArticles = await prisma.scoutAnalysis.findMany({
-            where: { isInteresting: true },
-            include: {
-              article: {
-                select: {
-                  title: true,
-                  date: true,
-                  publication: true
-                }
-              }
-            },
-            orderBy: { confidence: 'desc' },
-            take: 3
-          });
-
-          let response = `I apologize, but I'm having trouble accessing my full capabilities right now. However, I can still help you explore the historical data I have access to.
-
-**Current Dataset:**`;
-
-          if (stats) {
-            response += `
-- ${stats.totalArticles} total articles analyzed
-- ${stats.interestingArticles} articles identified as particularly interesting (${stats.interestingPercentage}%)
-- Articles span various historical periods and topics`;
-          }
-
-          if (interestingArticles.length > 0) {
-            response += `
-
-**Some interesting articles I can help you explore:**`;
-            interestingArticles.forEach((analysis, index) => {
-              const date = analysis.article.date ? new Date(analysis.article.date).getFullYear() : 'Unknown';
-              response += `
-${index + 1}. "${analysis.article.title}" (${date}) - ${analysis.article.publication}`;
-            });
-          }
-
-          response += `
-
-**What I can help you with:**
-- Analyzing historical events and their connections
-- Identifying patterns in political and social movements  
-- Exploring documentary potential in historical records
-- Building timelines and narrative threads
-- Searching through analyzed articles by topic, time period, or theme
-
-What specific aspect of historical research would you like to explore? I can search through the available data to find relevant articles and patterns.`;
-
-          return {
-            response,
-            reasoning: ['Fallback response with actual database content'],
-            artifacts: [],
-            tokenUsage: 75
-          };
-        }
-      } catch (fallbackError) {
-        console.error('Fallback response also failed:', fallbackError);
-        
-        return {
-          response: `I apologize, but I'm having trouble accessing my full capabilities right now. However, I can tell you that I'm designed to help you discover hidden narratives in historical records. 
-
-What specific aspect of historical research would you like to explore? I can help you with:
-- Analyzing historical events and their connections
-- Identifying patterns in political and social movements  
-- Exploring documentary potential in historical records
-- Building timelines and narrative threads
-
-Please let me know what interests you most!`,
-          reasoning: ['Fallback response due to system limitations'],
-          artifacts: [],
-          tokenUsage: 50
-        };
-      }
+      // Provide a simple fallback response following the interaction guide
+      return {
+        response: "I'm having trouble accessing my full capabilities right now, but I can still help you explore stories. What's on your mind?",
+        reasoning: ['Fallback response - system limitations'],
+        artifacts: [],
+        tokenUsage: 5
+      };
     }
   }
 
   private buildContext(project: any, scoutData: any[], message: string): string {
-    let context = `You are Jordi, a friendly and curious AI investigative research assistant. You love digging into historical mysteries and helping people discover fascinating stories from the past.
+    let context = `You are Jordi, a warm, calm, and insightful story researcher. You are a conversational partner, not a search engine. You are a research assistant, not a trivia bot. You are a thinking agent, not a static interface.
 
-You have access to ${scoutData.length} relevant articles about various historical events from the 1940s-1950s, including WWII, civil rights movements, political developments, and human interest stories.
+CORE PRINCIPLES:
+- Keep communication natural and lightweight
+- Always nudge toward action or inquiry
+- Gate expensive operations (tokens) behind user intent
+- Think out loud, but don't dump content unless asked
+- Surface insight, not just data
+- Be calm and direct (no exclamation marks unless mimicking a source)
+- Speak like a collaborator: "Want me to check?" not "Here's 47 headlines"
+- Use soft nudges, not assumptions: "Should I start an artifact?" not "Here's a full analysis"
+- Never drop a wall of headlines or data
 
-Your personality:
-- Conversational and engaging, like talking to a knowledgeable friend
-- Curious about patterns and connections in history
-- Excited to share interesting discoveries
-- Ask follow-up questions to understand what the user finds most intriguing
-- Use natural language, not academic jargon
+You have access to material from the Atlanta Journal-Constitution, mostly covering 1940s and 1950s: murders, scandals, missing persons, public coverups.
+
+CONVERSATION EXAMPLES:
+- User: "What about murder?" → "That opens up a lot of possibilities. Want something sensational, tragic, or unresolved?"
+- User: "Tell me about disappearances." → "Plenty of eerie ones. A city councilman vanished on the way to a meeting in 1948 — no body, no note. Should I dig into that one?"
+- User: "What kind of stories do you have?" → "Right now I'm loaded with material from the Atlanta Journal-Constitution — mostly covering 1940s and 1950s. Some of it's pretty wild: murders, scandals, missing persons, public coverups. Want to narrow it down?"
+
+ALWAYS ASK BEFORE:
+- Archive sweeps
+- Article set pulls  
+- Artifact generation (timeline, narrative thread, crosswalk)
+- Any token-heavy operations
 
 Current Project: ${project.title}
-Project Description: ${project.description}
-
-Available Historical Data (${scoutData.length} articles):
-${scoutData.slice(0, 12).map(analysis => 
-  `- "${analysis.article.title}" (${analysis.article.date ? new Date(analysis.article.date).getFullYear() : 'Unknown'}) - ${analysis.documentaryPotential === 'YES' ? 'High' : analysis.documentaryPotential === 'MAYBE' ? 'Medium' : 'Low'} documentary potential`
-).join('\n')}${scoutData.length > 12 ? `\n...and ${scoutData.length - 12} more articles` : ''}
-
+Available Data: ${scoutData.length} relevant articles from 1940s-1950s
 User Message: ${message}
 
-Respond conversationally and help the user explore these historical narratives. If they're asking about topics, suggest specific articles or themes they might find interesting. Generate artifacts when it would help visualize patterns or connections.`;
+Respond conversationally, offer light story leads, and nudge toward productive exploration. Keep it natural and collaborative.`;
 
     return context;
   }
