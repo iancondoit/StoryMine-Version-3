@@ -194,7 +194,7 @@ What story would you like to uncover today?`,
                 <div className="flex-1">
                   <div className={`p-3 rounded-lg ${
                     msg.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
+                      ? 'bg-blue-700 text-white font-medium' 
                       : 'bg-gray-100 text-gray-900'
                   }`}>
                     <div className="text-sm leading-relaxed whitespace-pre-wrap">
