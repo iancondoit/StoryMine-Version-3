@@ -27,20 +27,20 @@ export const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({ children }
         <TokenCounter />
       </header>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex min-h-0">
-        {/* Left Column: Project Navigator */}
-        <aside className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      {/* Main Content Area - Chat window takes nearly half the screen */}
+      <div className="flex-1 grid min-h-0" style={{ gridTemplateColumns: '280px 1fr 45%' }}>
+        {/* Left Column: Project Navigator - Compact sidebar */}
+        <aside className="bg-white border-r border-gray-200 flex flex-col">
           <ProjectNavigator />
         </aside>
 
-        {/* Middle Column: Artifact Space */}
-        <main className="flex-1 bg-gray-50 flex flex-col min-w-0">
+        {/* Middle Column: Artifact Space - Remaining space */}
+        <main className="bg-gray-50 flex flex-col min-w-0">
           <ArtifactSpace />
         </main>
 
-        {/* Right Column: Chat Interface */}
-        <aside className="w-96 bg-white border-l border-gray-200 flex flex-col">
+        {/* Right Column: Chat Interface - Nearly half the screen */}
+        <aside className="bg-white border-l border-gray-200 flex flex-col">
           <ChatInterface />
         </aside>
       </div>

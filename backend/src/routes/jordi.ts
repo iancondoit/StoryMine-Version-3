@@ -9,40 +9,38 @@ const prisma = new PrismaClient();
 const jordiAgent = new JordiAgent();
 const mistralService = new MistralService();
 
-// Request validation schemas
-const chatRequestSchema = z.object({
+// Request schemas
+const chatSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty'),
-  projectId: z.string().min(1, 'Project ID is required'),
-  userId: z.string().min(1, 'User ID is required')
+  projectId: z.string().optional(),
+  userId: z.string().default('demo-user') // For development
 });
 
 const clearMemorySchema = z.object({
-  projectId: z.string().min(1, 'Project ID is required')
+  projectId: z.string()
 });
 
 // POST /api/jordi/chat - Send message to Jordi
 router.post('/chat', async (req, res) => {
   try {
-    const { message, projectId, userId } = chatRequestSchema.parse(req.body);
+    const { message, projectId = 'default', userId } = chatSchema.parse(req.body);
 
-    // Verify project exists and user has access
-    const project = await prisma.project.findFirst({
-      where: {
-        id: projectId,
-        userId: userId
-      }
+    // Check user's token balance
+    const tokenBalance = await prisma.tokenBalance.findUnique({
+      where: { userId }
     });
 
-    if (!project) {
-      return res.status(404).json({
-        error: 'Project not found or access denied'
+    if (!tokenBalance || tokenBalance.balance < 10) {
+      return res.status(402).json({
+        error: 'Insufficient tokens',
+        message: 'Please purchase more tokens to continue'
       });
     }
 
     // Process message with Jordi
     const result = await jordiAgent.processMessage(projectId, message, userId);
 
-    // Track token usage
+    // Track token usage - Fix metadata type issue
     await prisma.tokenUsage.create({
       data: {
         userId,
@@ -155,17 +153,26 @@ router.post('/clear-memory', async (req, res) => {
 // GET /api/jordi/scout/stats - Get Scout data statistics
 router.get('/scout/stats', async (req, res) => {
   try {
-    const stats = await prisma.scoutAnalysis.groupBy({
-      by: ['documentaryPotential', 'unusualness', 'modernRelevance'],
+    // Get basic counts using the correct model names
+    const totalArticles = await prisma.sourceArticle.count();
+    const analyzedArticles = await prisma.scoutAnalysis.count();
+    const interestingArticles = await prisma.scoutAnalysis.count({
+      where: { isInteresting: true }
+    });
+
+    // Get distribution stats using the correct fields
+    const documentaryPotentialStats = await prisma.scoutAnalysis.groupBy({
+      by: ['documentaryPotential'],
       _count: {
         documentaryPotential: true
       }
     });
 
-    const totalArticles = await prisma.sourceArticle.count();
-    const analyzedArticles = await prisma.scoutAnalysis.count();
-    const interestingArticles = await prisma.scoutAnalysis.count({
-      where: { isInteresting: true }
+    const unusualnessStats = await prisma.scoutAnalysis.groupBy({
+      by: ['unusualness'],
+      _count: {
+        unusualness: true
+      }
     });
 
     res.json({
@@ -177,7 +184,8 @@ router.get('/scout/stats', async (req, res) => {
           interestingArticles,
           interestingPercentage: analyzedArticles > 0 ? ((interestingArticles / analyzedArticles) * 100).toFixed(1) : '0'
         },
-        distributionStats: stats,
+        documentaryPotential: documentaryPotentialStats,
+        unusualness: unusualnessStats,
         lastUpdated: new Date().toISOString()
       }
     });
@@ -196,7 +204,6 @@ router.get('/scout/search', async (req, res) => {
     const { 
       query, 
       documentaryPotential, 
-      storyType, 
       minConfidence, 
       startDate, 
       endDate,
@@ -224,12 +231,6 @@ router.get('/scout/search', async (req, res) => {
       };
     }
 
-    if (storyType) {
-      searchConditions.storyTypes = {
-        contains: storyType as string
-      };
-    }
-
     if (startDate || endDate) {
       searchConditions.article = {
         ...searchConditions.article,
@@ -240,31 +241,27 @@ router.get('/scout/search', async (req, res) => {
       };
     }
 
-    const results = await prisma.scoutAnalysis.findMany({
+    const analyses = await prisma.scoutAnalysis.findMany({
       where: searchConditions,
       include: {
         article: {
           select: {
-            id: true,
-            articleId: true,
             title: true,
             date: true,
-            publication: true
+            publication: true,
+            content: true
           }
         }
       },
-      orderBy: {
-        confidence: 'desc'
-      },
-      take: Math.min(parseInt(limit as string) || 20, 100)
+      take: parseInt(limit as string),
+      orderBy: { confidence: 'desc' }
     });
 
     res.json({
       success: true,
       data: {
-        results,
-        count: results.length,
-        query: req.query
+        results: analyses,
+        count: analyses.length
       }
     });
   } catch (error) {
