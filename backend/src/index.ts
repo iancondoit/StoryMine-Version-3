@@ -34,10 +34,10 @@ app.get('/health', (req, res) => {
 });
 
 // Import routes
-// import jordiRoutes from './routes/jordi';
+import jordiRoutes from './routes/jordi';
 
 // API routes
-// app.use('/api/jordi', jordiRoutes);
+app.use('/api/jordi', jordiRoutes);
 // app.use('/api/auth', authRoutes);
 // app.use('/api/projects', projectRoutes);
 // app.use('/api/artifacts', artifactRoutes);

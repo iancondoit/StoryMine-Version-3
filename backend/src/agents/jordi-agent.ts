@@ -64,17 +64,14 @@ export class JordiAgent {
       // Get response from Mistral
       const mistralResponse = await mistralService.generateResponse(context);
       
-      // Parse the response
-      const response = this.parseResponse(mistralResponse);
-      
       // Store in memory
-      this.updateMemory(projectId, message, response.response);
+      this.updateMemory(projectId, message, mistralResponse.content);
       
       return {
-        response: response.response,
-        reasoning: response.reasoning,
-        artifacts: response.artifacts,
-        tokenUsage: this.estimateTokenUsage(context + response.response)
+        response: mistralResponse.content,
+        reasoning: mistralResponse.reasoning,
+        artifacts: mistralResponse.artifacts,
+        tokenUsage: mistralResponse.tokenUsage.total
       };
     } catch (error) {
       console.error('Error processing message:', error);
@@ -122,14 +119,7 @@ Please provide a thoughtful response that helps the user discover connections an
     return context;
   }
 
-  private parseResponse(response: string): { response: string; reasoning: string[]; artifacts: any[] } {
-    // Simple parsing - in production would be more sophisticated
-    return {
-      response: response,
-      reasoning: ['Analyzed historical context', 'Identified potential connections', 'Provided research guidance'],
-      artifacts: []
-    };
-  }
+
 
   private updateMemory(projectId: string, message: string, response: string): void {
     const memory = this.projectMemory.get(projectId) || { messages: [] };

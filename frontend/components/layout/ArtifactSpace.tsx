@@ -1,37 +1,19 @@
 import React from 'react';
 import { Save, Share, Pin, Clock, FileText, Calendar, GitBranch, Search } from 'lucide-react';
 
+interface Artifact {
+  id: string;
+  title: string;
+  type: string;
+  content: string;
+  isPinned: boolean;
+  createdAt: Date;
+  project: string;
+}
+
 export const ArtifactSpace: React.FC = () => {
-  // Mock artifact data - will be replaced with real data from API
-  const artifacts = [
-    {
-      id: '1',
-      title: 'Suspicious Events – March 1978',
-      type: 'NARRATIVE_THREAD',
-      content: 'I found a strange clustering of articles in March 1978 about a car accident involving Judge Ransom White. The coverage is vague, but one article mentions "inconclusive toxicology results."',
-      isPinned: true,
-      createdAt: new Date('2024-01-15T10:30:00'),
-      project: 'Judge Ransom White Investigation',
-    },
-    {
-      id: '2',
-      title: 'Timeline of Judge White\'s Media Mentions',
-      type: 'TIMELINE',
-      content: 'A chronological overview of all media mentions of Judge Ransom White from 1976-1979, showing unusual patterns in coverage frequency.',
-      isPinned: false,
-      createdAt: new Date('2024-01-15T11:45:00'),
-      project: 'Judge Ransom White Investigation',
-    },
-    {
-      id: '3',
-      title: 'Source Crosswalk – McAllen Deaths vs. Refinery Timeline',
-      type: 'SOURCE_CROSSWALK',
-      content: 'Comparing timelines of pesticide deaths and refinery expansion to identify potential connections and overlapping individuals or organizations.',
-      isPinned: false,
-      createdAt: new Date('2024-01-14T14:20:00'),
-      project: 'Pesticide Deaths in McAllen, TX',
-    },
-  ];
+  // Artifacts will be loaded from API in future implementation
+  const artifacts: Artifact[] = [];
 
   const getArtifactIcon = (type: string) => {
     switch (type) {
@@ -141,12 +123,23 @@ export const ArtifactSpace: React.FC = () => {
       {/* Empty State */}
       {artifacts.length === 0 && (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <div className="text-center max-w-md mx-auto px-4">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-8 h-8 text-gray-400" />
+            </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No artifacts yet</h3>
-            <p className="text-gray-500">
-              Start a conversation with Jordi to generate research artifacts
+            <p className="text-gray-500 leading-relaxed">
+              Start a conversation with Jordi to generate research artifacts. She'll create timelines, narrative threads, source crosswalks, and hypothesis trees to help you investigate your stories.
             </p>
+            <div className="mt-4 text-sm text-gray-400">
+              <p>Ask Jordi about:</p>
+              <ul className="mt-2 space-y-1">
+                <li>• Historical patterns and connections</li>
+                <li>• Suspicious events or anomalies</li>
+                <li>• People, places, or organizations</li>
+                <li>• Timeline analysis of specific periods</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}

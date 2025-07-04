@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, Bot, User, CheckCircle } from 'lucide-react';
 
 // Utility function for consistent time formatting to avoid hydration issues
@@ -10,59 +10,115 @@ const formatTime = (date: Date) => {
   return `${hours}:${minutes}`;
 };
 
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  reasoning?: string[];
+  isThinking?: boolean;
+  artifacts?: string[];
+}
+
+interface DatasetStats {
+  totalArticles: number;
+  analyzedArticles: number;
+  interestingArticles: number;
+  interestingPercentage: string;
+}
+
 export const ChatInterface: React.FC = () => {
   const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [datasetStats, setDatasetStats] = useState<DatasetStats | null>(null);
 
-  // Mock conversation data - will be replaced with real data from API
-  const messages = [
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Hello! I\'m Jordi, your research assistant. I\'m here to help you investigate deeply and uncover hidden narratives. What would you like to explore today?',
-      timestamp: new Date('2024-01-15T09:00:00'),
-      reasoning: [],
-    },
-    {
-      id: '2',
-      role: 'user',
-      content: 'Did anything suspicious happen to Judge Ransom White in 1978?',
-      timestamp: new Date('2024-01-15T09:05:00'),
-    },
-    {
-      id: '3',
-      role: 'assistant',
-      content: 'Interesting — I\'ll begin by searching for any articles that mention Judge Ransom White between 1976–1979.',
-      timestamp: new Date('2024-01-15T09:06:00'),
-      reasoning: [
-        'Step 1: Entity resolution: Confirming identity',
-        'Step 2: Filtering by crime or legal keywords: "death," "investigation," "scandal"',
-        'Step 3: Pattern-matching article clusters over time'
-      ],
-      isThinking: true,
-    },
-    {
-      id: '4',
-      role: 'assistant',
-      content: 'I found a strange clustering of articles in March 1978 about a car accident. But the coverage is vague. One article mentions "inconclusive toxicology results." I\'ll flag that.\n\nI\'m going to write a short Narrative Thread artifact about this window and mark it with a 🚨. You may want to dig deeper into who ordered the toxicology report.',
-      timestamp: new Date('2024-01-15T09:10:00'),
-      artifacts: ['Suspicious Events – March 1978', 'Timeline of Judge White\'s Media Mentions'],
-    },
-  ];
+  // Load dataset statistics and show introduction
+  useEffect(() => {
+    const initializeJordi = async () => {
+      try {
+        // Fetch dataset statistics
+        const response = await fetch('/api/jordi/scout/stats');
+        const data = await response.json();
+        
+        if (data.success) {
+          setDatasetStats(data.data.overview);
+        }
+      } catch (error) {
+        console.error('Error fetching dataset stats:', error);
+      }
 
-  const handleSubmit = (e: React.FormEvent) => {
+      // Create Jordi's introduction message
+      const introMessage: Message = {
+        id: 'intro-1',
+        role: 'assistant',
+        content: `Hello! I'm Jordi, your AI research assistant specialized in investigative journalism and historical analysis.
+
+**How StoryMine Works:**
+StoryMine is your investigative research platform that helps you discover hidden narratives buried in historical records. I analyze thousands of documents to find patterns, connections, and stories that might otherwise go unnoticed.
+
+**My Dataset:**
+${datasetStats ? `
+• **${datasetStats.totalArticles.toLocaleString()} total articles** from historical archives
+• **${datasetStats.analyzedArticles.toLocaleString()} analyzed articles** processed by Scout (our background analysis agent)
+• **${datasetStats.interestingArticles.toLocaleString()} interesting articles** flagged for investigative potential
+• **${datasetStats.interestingPercentage}% discovery rate** of potentially compelling stories
+
+` : '• Currently loading dataset statistics...'}**What I Can Help You With:**
+- **Timeline Creation**: Organize events chronologically to reveal patterns
+- **Narrative Thread Analysis**: Connect scattered information into coherent stories  
+- **Source Crosswalks**: Compare multiple sources to find discrepancies or confirmations
+- **Entity Tracking**: Follow people, places, and organizations across time
+- **Hypothesis Trees**: Build and test investigative theories
+
+**My Approach:**
+I don't just search for keywords - I understand context, detect anomalies, and identify stories with documentary potential. I'll show you my reasoning process and generate research artifacts to help you investigate deeper.
+
+What story would you like to uncover today?`,
+        timestamp: new Date(),
+        reasoning: []
+      };
+
+      setMessages([introMessage]);
+    };
+
+    initializeJordi();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
     
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: message,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setMessage('');
     setIsLoading(true);
-    // TODO: Send message to API
-    setTimeout(() => {
-      setMessage('');
+
+    try {
+      // TODO: Send message to backend API
+      // For now, show a placeholder response
+      setTimeout(() => {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: 'I understand you want to explore that topic. I\'m still connecting to my full analysis capabilities. Please check back soon!',
+          timestamp: new Date(),
+          reasoning: []
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsLoading(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Error sending message:', error);
       setIsLoading(false);
-    }, 1000);
+    }
   };
-
-
 
   return (
     <div className="flex flex-col h-full">
@@ -84,10 +140,11 @@ export const ChatInterface: React.FC = () => {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] ${msg.role === 'user' ? 'order-2' : 'order-1'}`}>
-              {/* Message Header */}
-              <div className={`flex items-center space-x-2 mb-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                  msg.role === 'user' ? 'bg-blue-500' : 'bg-green-500'
+              <div className={`flex items-start space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  msg.role === 'user' 
+                    ? 'bg-blue-600' 
+                    : 'bg-gradient-to-br from-green-500 to-blue-600'
                 }`}>
                   {msg.role === 'user' ? (
                     <User className="w-4 h-4 text-white" />
@@ -95,67 +152,72 @@ export const ChatInterface: React.FC = () => {
                     <Bot className="w-4 h-4 text-white" />
                   )}
                 </div>
-                <span className="text-xs text-gray-500">{formatTime(msg.timestamp)}</span>
-              </div>
-
-              {/* Message Content */}
-              <div className={`p-3 rounded-lg ${
-                msg.role === 'user' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-100 text-gray-900'
-              }`}>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-              </div>
-
-              {/* Reasoning Steps */}
-              {msg.reasoning && msg.reasoning.length > 0 && (
-                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <CheckCircle className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-800">Reasoning Steps</span>
+                <div className="flex-1">
+                  <div className={`p-3 rounded-lg ${
+                    msg.role === 'user' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-900'
+                  }`}>
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {msg.content}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {msg.reasoning.map((step, index) => (
-                      <div key={index} className="text-sm text-amber-700">
-                        {msg.isThinking ? '🔍' : '✅'} {step}
+                  
+                  {/* Reasoning Steps */}
+                  {msg.reasoning && msg.reasoning.length > 0 && (
+                    <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <CheckCircle className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-900">Reasoning Steps</span>
                       </div>
-                    ))}
+                      <div className="space-y-1">
+                        {msg.reasoning.map((step, index) => (
+                          <div key={index} className="text-sm text-blue-800">
+                            {step}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Artifacts Generated */}
+                  {msg.artifacts && msg.artifacts.length > 0 && (
+                    <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-900">Artifacts Generated</span>
+                      </div>
+                      <div className="space-y-1">
+                        {msg.artifacts.map((artifact, index) => (
+                          <div key={index} className="text-sm text-green-800">
+                            📄 {artifact}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="mt-2 text-xs text-gray-500">
+                    {formatTime(msg.timestamp)}
                   </div>
                 </div>
-              )}
-
-              {/* Generated Artifacts */}
-              {msg.artifacts && msg.artifacts.length > 0 && (
-                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="text-sm font-medium text-blue-800">Generated Artifacts</span>
-                  </div>
-                  <div className="space-y-1">
-                    {msg.artifacts.map((artifact, index) => (
-                      <div key={index} className="text-sm text-blue-700">
-                        📄 {artifact}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         ))}
-
+        
         {isLoading && (
           <div className="flex justify-start">
-            <div className="max-w-[85%]">
-              <div className="flex items-center space-x-2 mb-1">
-                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-xs text-gray-500">Thinking...</span>
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
+                <Bot className="w-4 h-4 text-white" />
               </div>
-              <div className="p-3 bg-gray-100 rounded-lg">
+              <div className="bg-gray-100 rounded-lg p-3">
                 <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                  <span className="text-sm text-gray-600">Jordi is investigating...</span>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <span className="text-sm text-gray-600 ml-2">Jordi is thinking...</span>
                 </div>
               </div>
             </div>
@@ -163,21 +225,21 @@ export const ChatInterface: React.FC = () => {
         )}
       </div>
 
-      {/* Input Area */}
+      {/* Message Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
         <form onSubmit={handleSubmit} className="flex space-x-2">
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask Jordi about your investigation..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Ask me about historical patterns, suspicious events, or connections..."
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !message.trim()}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="w-4 h-4" />
           </button>

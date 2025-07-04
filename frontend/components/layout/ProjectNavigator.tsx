@@ -1,36 +1,20 @@
 import React from 'react';
 import { Plus, Zap, Lock, Brain, Archive } from 'lucide-react';
 
-export const ProjectNavigator: React.FC = () => {
-  // Mock project data - will be replaced with real data from API
-  const projects = [
-    {
-      id: '1',
-      title: 'The Ghost Town That Hid a War Lab',
-      lastActive: new Date('2024-01-15'),
-      status: 'active',
-      isExclusive: true,
-      memoryOn: true,
-    },
-    {
-      id: '2',
-      title: 'Pesticide Deaths in McAllen, TX',
-      lastActive: new Date('2024-01-10'),
-      status: 'active',
-      isExclusive: false,
-      memoryOn: true,
-    },
-    {
-      id: '3',
-      title: 'Judge Ransom White Investigation',
-      lastActive: new Date('2024-01-05'),
-      status: 'archived',
-      isExclusive: false,
-      memoryOn: false,
-    },
-  ];
+interface Project {
+  id: string;
+  title: string;
+  lastActive: Date;
+  status: 'active' | 'archived';
+  isExclusive: boolean;
+  memoryOn: boolean;
+}
 
-  const getStatusIcon = (project: any) => {
+export const ProjectNavigator: React.FC = () => {
+  // Projects will be loaded from API in future implementation
+  const projects: Project[] = [];
+
+  const getStatusIcon = (project: Project) => {
     if (project.status === 'active') return <Zap className="w-3 h-3 text-green-500" />;
     if (project.status === 'archived') return <Archive className="w-3 h-3 text-gray-400" />;
     return null;
@@ -81,6 +65,19 @@ export const ProjectNavigator: React.FC = () => {
             </p>
           </div>
         ))}
+        
+        {/* Empty State */}
+        {projects.length === 0 && (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Plus className="w-6 h-6 text-gray-400" />
+            </div>
+            <h3 className="text-sm font-medium text-gray-900 mb-2">No projects yet</h3>
+            <p className="text-xs text-gray-500 leading-relaxed px-2">
+              Start your first investigative project by chatting with Jordi. She'll help you explore historical narratives and create focused research projects.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Footer */}

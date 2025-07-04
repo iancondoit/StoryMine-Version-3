@@ -10,7 +10,8 @@ const formatNumber = (num: number): string => {
 
 export const TokenCounter: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [balance, setBalance] = useState(2450); // Mock balance
+  // Start with a default balance - will be replaced with API data
+  const [balance, setBalance] = useState(1000);
   const [isLowBalance, setIsLowBalance] = useState(balance < 500);
 
   const handlePurchase = (tokenPackage: { tokens: number; price: number }) => {
@@ -72,77 +73,66 @@ export const TokenCounter: React.FC = () => {
               </div>
             )}
 
-            {/* Token Usage Info */}
+            {/* Usage Info */}
             <div className="mb-4 p-3 bg-gray-50 rounded-lg">
               <div className="text-sm text-gray-600 space-y-1">
                 <div className="flex justify-between">
-                  <span>Total purchased:</span>
-                  <span className="font-medium">15,000</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Total used:</span>
-                  <span className="font-medium">12,550</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Remaining:</span>
+                  <span>Available tokens:</span>
                   <span className="font-medium text-gray-900">{formatNumber(balance)}</span>
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  • Chat messages: ~10-50 tokens each
+                  • Artifact generation: ~100-500 tokens
+                  • Deep analysis: ~200-1000 tokens
                 </div>
               </div>
             </div>
 
             {/* Purchase Options */}
-            <div className="space-y-2 mb-4">
-              <h4 className="text-sm font-medium text-gray-900">Buy more tokens</h4>
-              {tokenPackages.map((pkg) => (
-                <button
-                  key={pkg.tokens}
-                  onClick={() => handlePurchase(pkg)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                    pkg.popular
-                      ? 'border-blue-200 bg-blue-50 hover:bg-blue-100'
-                      : 'border-gray-200 bg-white hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Coins className="w-4 h-4 text-gray-400" />
-                    <div className="text-left">
-                      <div className="font-medium text-gray-900">
-                        {formatNumber(pkg.tokens)} tokens
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Purchase More Tokens</h4>
+              {tokenPackages.map((pkg, index) => (
+                <div key={index} className="relative">
+                  <button
+                    onClick={() => handlePurchase(pkg)}
+                    className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                      pkg.popular 
+                        ? 'border-blue-200 bg-blue-50 hover:bg-blue-100' 
+                        : 'border-gray-200 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {formatNumber(pkg.tokens)} tokens
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          ${pkg.price} • ${(pkg.price / pkg.tokens * 1000).toFixed(1)} per 1K tokens
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        ${pkg.price} • ${(pkg.price / (pkg.tokens / 1000)).toFixed(2)}/1k tokens
+                      <div className="flex items-center space-x-2">
+                        <CreditCard className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-900">${pkg.price}</span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                   {pkg.popular && (
-                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
                       Popular
-                    </span>
+                    </div>
                   )}
-                </button>
+                </div>
               ))}
             </div>
 
-            {/* Payment Info */}
-            <div className="pt-3 border-t border-gray-200">
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <CreditCard className="w-4 h-4" />
-                <span>Secure payment with Stripe</span>
+            {/* Footer */}
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <div className="text-xs text-gray-500 text-center">
+                Secure payments powered by Stripe
               </div>
-              <p className="text-xs text-gray-400 mt-1">
-                No subscription required. Pay only for what you use.
-              </p>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Backdrop */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setIsOpen(false)}
-        />
       )}
     </div>
   );

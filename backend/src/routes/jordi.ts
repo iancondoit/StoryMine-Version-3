@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { PrismaClient } from '../generated/prisma';
-import { createJordiAgent } from '../agents/jordi-agent';
-import { mistralService } from '../services/mistral-service';
+import { JordiAgent } from '../agents/jordi-agent';
+import { MistralService } from '../services/mistral-service';
 import { z } from 'zod';
 
 const router = Router();
 const prisma = new PrismaClient();
-const jordiAgent = createJordiAgent(prisma, mistralService);
+const jordiAgent = new JordiAgent();
+const mistralService = new MistralService();
 
 // Request validation schemas
 const chatRequestSchema = z.object({
