@@ -1,0 +1,192 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  projects      Project[]
+  tokenBalance  TokenBalance?
+  payments      Payment[]
+  conversations Conversation[]
+  tokenUsage    TokenUsage[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String   @default("ACTIVE") // ACTIVE, ARCHIVED, CANCELLED
+  isExclusive Boolean  @default(false)
+  memoryOn    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign Keys
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Relationships
+  artifacts     Artifact[]
+  conversations Conversation[]
+
+  @@map("projects")
+}
+
+model Artifact {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  type        String   // TIMELINE, NARRATIVE_THREAD, etc.
+  metadata    String?  // JSON string for additional data
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign Keys
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("artifacts")
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  messages  String   // JSON string of message objects
+  context   String?  // JSON string of Jordi's memory and context
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign Keys
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("conversations")
+}
+
+model TokenBalance {
+  id            String   @id @default(cuid())
+  balance       Int      @default(0)
+  totalPurchased Int     @default(0)
+  totalUsed     Int      @default(0)
+  lastUsed      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Foreign Keys
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("token_balances")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  stripePaymentId String?  @unique
+  amount          Int      // Amount in cents
+  currency        String   @default("usd")
+  tokensGranted   Int
+  status          String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
+  metadata        String?  // JSON string for Stripe metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Foreign Keys
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model TokenUsage {
+  id        String   @id @default(cuid())
+  tokensUsed Int
+  operation String   // e.g., "jordi_conversation", "artifact_generation"
+  projectId String?  // Optional link to project
+  metadata  String?  // JSON string for additional context
+  createdAt DateTime @default(now())
+
+  // Foreign Keys
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("token_usage")
+}
+
+// === SCOUT DATA MODELS (Simplified for SQLite) ===
+
+model SourceArticle {
+  id          String   @id @default(cuid())
+  articleId   String   @unique // Original article ID from StoryDredge
+  title       String?
+  content     String   // Full article text  
+  date        DateTime?
+  publication String?  // Newspaper name
+  page        String?
+  section     String?
+  url         String?
+  metadata    String?  // JSON string for additional metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  scoutAnalysis ScoutAnalysis?
+  
+  @@map("source_articles")
+}
+
+model ScoutAnalysis {
+  id                    String   @id @default(cuid())
+  isInteresting         Boolean
+  confidence            Float    // 0.0 to 1.0
+  narrativeStrength     Int      // 1-5 scale
+  documentaryPotential  String   // YES, MAYBE, NO
+  reasoning             String
+  unusualness           String   // ANOMALOUS, NOTABLE, ROUTINE
+  emotionalEngagement   String   // STRONG, MODERATE, WEAK
+  modernRelevance       String   // HIGH, MEDIUM, LOW
+  storyTypes            String?  // JSON array of story types
+  processingTimestamp   DateTime
+  scoutVersion          String   @default("1.0.0")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Foreign Keys
+  articleId String @unique
+  article   SourceArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("scout_analyses")
+}
+
+// === STRING CONSTANTS (SQLite doesn't support enums) ===
+// ProjectStatus: ACTIVE, ARCHIVED, CANCELLED
+// ArtifactType: TIMELINE, NARRATIVE_THREAD, SOURCE_CROSSWALK, HYPOTHESIS_TREE, SUMMARY, COMPARISON, ENTITY_PROFILE, RESEARCH_NOTES  
+// PaymentStatus: PENDING, COMPLETED, FAILED, REFUNDED
+// DocumentaryPotential: YES, MAYBE, NO
+// Unusualness: ANOMALOUS, NOTABLE, ROUTINE
+// EmotionalEngagement: STRONG, MODERATE, WEAK
+// ModernRelevance: HIGH, MEDIUM, LOW
+// EntityType: PERSON, PLACE, ORGANIZATION, EVENT, CONCEPT
