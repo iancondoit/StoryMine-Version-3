@@ -15,7 +15,9 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "ts-node prisma/seed.ts",
     "db:studio": "prisma studio",
-    "import:scout": "ts-node src/scripts/import-scout-data.ts"
+    "import:scout": "ts-node src/scripts/import-scout-data.ts",
+    "import:scout-simple": "ts-node src/scripts/import-scout-data-simple.ts",
+    "import:scout-full": "ts-node src/scripts/import-scout-data-full.ts"
   },
   "keywords": [
     "storymine",

@@ -10,6 +10,12 @@ const formatTime = (date: Date) => {
   return `${hours}:${minutes}`;
 };
 
+interface Artifact {
+  type: string;
+  title: string;
+  content: string;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -17,7 +23,7 @@ interface Message {
   timestamp: Date;
   reasoning?: string[];
   isThinking?: boolean;
-  artifacts?: string[];
+  artifacts?: (string | Artifact)[];
 }
 
 interface DatasetStats {
@@ -43,11 +49,10 @@ export const ChatInterface: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Load dataset statistics and show introduction
+  // Load dataset statistics
   useEffect(() => {
-    const initializeJordi = async () => {
+    const fetchStats = async () => {
       try {
-        // Fetch dataset statistics from backend server
         const response = await fetch('http://localhost:3001/api/jordi/scout/stats');
         const data = await response.json();
         
@@ -57,8 +62,14 @@ export const ChatInterface: React.FC = () => {
       } catch (error) {
         console.error('Error fetching dataset stats:', error);
       }
+    };
 
-      // Create Jordi's introduction message
+    fetchStats();
+  }, []);
+
+  // Create introduction message once dataset stats are loaded
+  useEffect(() => {
+    if (datasetStats) {
       const introMessage: Message = {
         id: 'intro-1',
         role: 'assistant',
@@ -68,13 +79,12 @@ export const ChatInterface: React.FC = () => {
 StoryMine is your investigative research platform that helps you discover hidden narratives buried in historical records. I analyze thousands of documents to find patterns, connections, and stories that might otherwise go unnoticed.
 
 **My Dataset:**
-${datasetStats ? `
 • **${datasetStats.totalArticles.toLocaleString()} total articles** from historical archives
 • **${datasetStats.analyzedArticles.toLocaleString()} analyzed articles** processed by Scout (our background analysis agent)
 • **${datasetStats.interestingArticles.toLocaleString()} interesting articles** flagged for investigative potential
 • **${datasetStats.interestingPercentage}% discovery rate** of potentially compelling stories
 
-` : '• Currently loading dataset statistics...'}**What I Can Help You With:**
+**What I Can Help You With:**
 - **Timeline Creation**: Organize events chronologically to reveal patterns
 - **Narrative Thread Analysis**: Connect scattered information into coherent stories  
 - **Source Crosswalks**: Compare multiple sources to find discrepancies or confirmations
@@ -90,10 +100,8 @@ What story would you like to uncover today?`,
       };
 
       setMessages([introMessage]);
-    };
-
-    initializeJordi();
-  }, []);
+    }
+  }, [datasetStats]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +128,7 @@ What story would you like to uncover today?`,
         body: JSON.stringify({
           message: message,
           projectId: 'default-project', // TODO: Get from actual project context
-          userId: 'demo-user'
+          userId: 'cmco3obd7000012e6y5e775dd'
         })
       });
 
@@ -226,12 +234,31 @@ What story would you like to uncover today?`,
                         <CheckCircle className="w-4 h-4 text-green-600" />
                         <span className="text-sm font-medium text-green-900">Artifacts Generated</span>
                       </div>
-                      <div className="space-y-1">
-                        {msg.artifacts.map((artifact, index) => (
-                          <div key={index} className="text-sm text-green-800">
-                            📄 {artifact}
-                          </div>
-                        ))}
+                      <div className="space-y-3">
+                        {msg.artifacts.map((artifact, index) => {
+                          // Handle both string and object artifacts for backward compatibility
+                          if (typeof artifact === 'string') {
+                            return (
+                              <div key={index} className="text-sm text-green-800">
+                                📄 {artifact}
+                              </div>
+                            );
+                          }
+                          
+                          // Handle artifact objects
+                          return (
+                            <div key={index} className="bg-white p-3 rounded-lg border border-green-300">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <span className="text-sm font-semibold text-green-700">{artifact.type}</span>
+                                <span className="text-xs text-green-600">•</span>
+                                <span className="text-sm font-medium text-green-800">{artifact.title}</span>
+                              </div>
+                              <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                                {artifact.content}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -282,7 +309,7 @@ What story would you like to uncover today?`,
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Ask Jordi about historical narratives, patterns, or connections..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
             disabled={isLoading}
           />
           <button

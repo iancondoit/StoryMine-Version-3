@@ -41,22 +41,34 @@ export class JordiAgent {
         throw new Error('Project not found');
       }
 
-      // Get some Scout data for context
-      const scoutData = await prisma.scoutAnalysis.findMany({
-        where: { isInteresting: true },
-        include: {
-          article: {
-            select: {
-              title: true,
-              content: true,
-              date: true,
-              publication: true
+      // Get diverse Scout data for context based on message keywords
+      const keywords = message.toLowerCase().match(/\b(war|civil rights|politics|political|naacp|georgia|congress|military|social|economic|investigation|scandal|conflict|government|court|election|bomb|attack|britain|africa|house|senate|tax|levy|women|commander|medal|service|murder|crime|mystery|unusual|anomalous)\b/g) || [];
+      const searchQuery = keywords.length > 0 ? keywords.join(' ') : '';
+      
+      const scoutData = await this.searchScoutData(searchQuery);
+      
+      // If no specific results, get a diverse sample
+      if (scoutData.length === 0) {
+        const diverseData = await prisma.scoutAnalysis.findMany({
+          where: { isInteresting: true },
+          include: {
+            article: {
+              select: {
+                title: true,
+                content: true,
+                date: true,
+                publication: true
+              }
             }
-          }
-        },
-        orderBy: { confidence: 'desc' },
-        take: 3
-      });
+          },
+          orderBy: [
+            { confidence: 'desc' },
+            { narrativeStrength: 'desc' }
+          ],
+          take: 15
+        });
+        scoutData.push(...diverseData);
+      }
 
       // Build context for Mistral
       const context = this.buildContext(project, scoutData, message);
@@ -76,11 +88,116 @@ export class JordiAgent {
     } catch (error) {
       console.error('Error processing message:', error);
       
-      // Return a fallback response
-      return {
-        response: `I apologize, but I'm having trouble accessing my full capabilities right now. However, I can tell you that I'm designed to help you discover hidden narratives in historical records. 
+      // Try to provide a useful fallback response with actual data
+      try {
+        // Check if the user is asking about something specific
+        // Extract key terms for better search
+        const keywords = message.toLowerCase().match(/\b(war|civil rights|politics|political|naacp|georgia|congress|military|social|economic|investigation|scandal|conflict|government|court|election|bomb|attack|britain|africa|house|senate|tax|levy|women|commander|medal|service)\b/g) || [];
+        const searchQuery = keywords.length > 0 ? keywords.join(' ') : '';
+        
+        const searchResults = await this.searchScoutData(searchQuery);
+        
+        if (searchResults.length > 0) {
+          // User seems to be asking about something we have data for
+          let response = `Great question! I found ${searchResults.length} relevant articles that caught my attention:
 
-Based on the sample data I have access to, I can see there were some interesting political tensions in 1957, including conflicts between civil rights organizations and state governments. 
+`;
+          
+          searchResults.slice(0, 5).forEach((analysis, index) => {
+            const date = analysis.article.date ? new Date(analysis.article.date).getFullYear() : 'Unknown';
+            const potentialText = analysis.documentaryPotential === 'YES' ? '🎬 High documentary potential' : 
+                                  analysis.documentaryPotential === 'MAYBE' ? '📽️ Some documentary potential' : 
+                                  '📄 Interesting for context';
+            
+            response += `**${index + 1}. "${analysis.article.title}" (${date})**
+${potentialText} • ${analysis.article.publication}
+`;
+            
+            if (analysis.reasoning && analysis.reasoning.length > 50) {
+              const reasoning = analysis.reasoning.substring(0, 120);
+              response += `💡 *${reasoning}${reasoning.length === 120 ? '...' : ''}*
+
+`;
+            }
+          });
+
+          if (searchResults.length > 5) {
+            response += `...and ${searchResults.length - 5} more articles I could explore!
+
+`;
+          }
+
+          response += `What catches your eye? I can dive deeper into any of these stories, look for connections between them, or search for different angles on this topic. What would you find most interesting?`;
+
+          return {
+            response,
+            reasoning: [`Found ${searchResults.length} relevant articles in database`, 'Fallback mode - full AI capabilities unavailable'],
+            artifacts: [],
+            tokenUsage: 60
+          };
+        } else {
+          // No specific search results, provide general overview
+          const stats = await this.getScoutStats();
+          const interestingArticles = await prisma.scoutAnalysis.findMany({
+            where: { isInteresting: true },
+            include: {
+              article: {
+                select: {
+                  title: true,
+                  date: true,
+                  publication: true
+                }
+              }
+            },
+            orderBy: { confidence: 'desc' },
+            take: 3
+          });
+
+          let response = `I apologize, but I'm having trouble accessing my full capabilities right now. However, I can still help you explore the historical data I have access to.
+
+**Current Dataset:**`;
+
+          if (stats) {
+            response += `
+- ${stats.totalArticles} total articles analyzed
+- ${stats.interestingArticles} articles identified as particularly interesting (${stats.interestingPercentage}%)
+- Articles span various historical periods and topics`;
+          }
+
+          if (interestingArticles.length > 0) {
+            response += `
+
+**Some interesting articles I can help you explore:**`;
+            interestingArticles.forEach((analysis, index) => {
+              const date = analysis.article.date ? new Date(analysis.article.date).getFullYear() : 'Unknown';
+              response += `
+${index + 1}. "${analysis.article.title}" (${date}) - ${analysis.article.publication}`;
+            });
+          }
+
+          response += `
+
+**What I can help you with:**
+- Analyzing historical events and their connections
+- Identifying patterns in political and social movements  
+- Exploring documentary potential in historical records
+- Building timelines and narrative threads
+- Searching through analyzed articles by topic, time period, or theme
+
+What specific aspect of historical research would you like to explore? I can search through the available data to find relevant articles and patterns.`;
+
+          return {
+            response,
+            reasoning: ['Fallback response with actual database content'],
+            artifacts: [],
+            tokenUsage: 75
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback response also failed:', fallbackError);
+        
+        return {
+          response: `I apologize, but I'm having trouble accessing my full capabilities right now. However, I can tell you that I'm designed to help you discover hidden narratives in historical records. 
 
 What specific aspect of historical research would you like to explore? I can help you with:
 - Analyzing historical events and their connections
@@ -89,32 +206,37 @@ What specific aspect of historical research would you like to explore? I can hel
 - Building timelines and narrative threads
 
 Please let me know what interests you most!`,
-        reasoning: ['Fallback response due to system limitations'],
-        artifacts: [],
-        tokenUsage: 50
-      };
+          reasoning: ['Fallback response due to system limitations'],
+          artifacts: [],
+          tokenUsage: 50
+        };
+      }
     }
   }
 
   private buildContext(project: any, scoutData: any[], message: string): string {
-    let context = `You are Jordi, an AI investigative research assistant specializing in discovering hidden narratives from historical records.
+    let context = `You are Jordi, a friendly and curious AI investigative research assistant. You love digging into historical mysteries and helping people discover fascinating stories from the past.
+
+You have access to ${scoutData.length} relevant articles about various historical events from the 1940s-1950s, including WWII, civil rights movements, political developments, and human interest stories.
+
+Your personality:
+- Conversational and engaging, like talking to a knowledgeable friend
+- Curious about patterns and connections in history
+- Excited to share interesting discoveries
+- Ask follow-up questions to understand what the user finds most intriguing
+- Use natural language, not academic jargon
 
 Current Project: ${project.title}
 Project Description: ${project.description}
 
-Recent Artifacts:
-${project.artifacts.map((artifact: any) => 
-  `- ${artifact.type}: ${artifact.title}`
-).join('\n')}
-
-Sample Historical Data:
-${scoutData.map(analysis => 
-  `- ${analysis.article.title} (${analysis.article.date?.toLocaleDateString()}) - ${analysis.documentaryPotential} documentary potential`
-).join('\n')}
+Available Historical Data (${scoutData.length} articles):
+${scoutData.slice(0, 12).map(analysis => 
+  `- "${analysis.article.title}" (${analysis.article.date ? new Date(analysis.article.date).getFullYear() : 'Unknown'}) - ${analysis.documentaryPotential === 'YES' ? 'High' : analysis.documentaryPotential === 'MAYBE' ? 'Medium' : 'Low'} documentary potential`
+).join('\n')}${scoutData.length > 12 ? `\n...and ${scoutData.length - 12} more articles` : ''}
 
 User Message: ${message}
 
-Please provide a thoughtful response that helps the user discover connections and narratives in historical data.`;
+Respond conversationally and help the user explore these historical narratives. If they're asking about topics, suggest specific articles or themes they might find interesting. Generate artifacts when it would help visualize patterns or connections.`;
 
     return context;
   }
@@ -177,6 +299,88 @@ Please provide a thoughtful response that helps the user discover connections an
      } catch (error) {
        console.error('Error saving memory to database:', error);
      }
+  }
+
+  async searchScoutData(query: string): Promise<any[]> {
+    try {
+      let searchResults;
+      
+      if (!query || query.trim().length === 0) {
+        // If no specific query, return a diverse sample of interesting articles
+        searchResults = await prisma.scoutAnalysis.findMany({
+          where: {
+            isInteresting: true,
+            documentaryPotential: {
+              in: ['YES', 'MAYBE']
+            }
+          },
+          include: {
+            article: {
+              select: {
+                title: true,
+                date: true,
+                publication: true,
+                content: true
+              }
+            }
+          },
+          orderBy: [
+            { confidence: 'desc' },
+            { narrativeStrength: 'desc' }
+          ],
+          take: 30
+        });
+      } else {
+        // Search with keywords (SQLite case-insensitive search)
+        searchResults = await prisma.scoutAnalysis.findMany({
+          where: {
+            OR: [
+              {
+                article: {
+                  title: {
+                    contains: query
+                  }
+                }
+              },
+              {
+                article: {
+                  content: {
+                    contains: query
+                  }
+                }
+              },
+              {
+                reasoning: {
+                  contains: query
+                }
+              },
+              {
+                storyTypes: {
+                  contains: query
+                }
+              }
+            ]
+          },
+          include: {
+            article: {
+              select: {
+                title: true,
+                date: true,
+                publication: true,
+                content: true
+              }
+            }
+          },
+          orderBy: { confidence: 'desc' },
+          take: 25
+        });
+      }
+
+      return searchResults;
+    } catch (error) {
+      console.error('Error searching Scout data:', error);
+      return [];
+    }
   }
 
   async getScoutStats(): Promise<any> {
