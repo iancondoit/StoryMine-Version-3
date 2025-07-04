@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, CheckCircle } from 'lucide-react';
 
 // Utility function for consistent time formatting to avoid hydration issues
@@ -32,6 +32,16 @@ export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [datasetStats, setDatasetStats] = useState<DatasetStats | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   // Load dataset statistics and show introduction
   useEffect(() => {
@@ -206,42 +216,52 @@ What story would you like to uncover today?`,
           </div>
         ))}
         
+        {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="flex items-start space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <div className="bg-gray-100 rounded-lg p-3">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <span className="text-sm text-gray-600 ml-2">Jordi is thinking...</span>
+            <div className="max-w-[85%]">
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="p-3 rounded-lg bg-gray-100 text-gray-900">
+                    <div className="flex items-center space-x-2">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                      <span className="text-sm text-gray-600">Jordi is thinking...</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         )}
+        
+        {/* Auto-scroll anchor */}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
+      {/* Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
-        <form onSubmit={handleSubmit} className="flex space-x-2">
+        <form onSubmit={handleSubmit} className="flex space-x-3">
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask me about historical patterns, suspicious events, or connections..."
+            placeholder="Ask Jordi about historical narratives, patterns, or connections..."
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !message.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-5 h-5" />
           </button>
         </form>
       </div>

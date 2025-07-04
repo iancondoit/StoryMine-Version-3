@@ -29,18 +29,18 @@ export const ThreeColumnLayout: React.FC<ThreeColumnLayoutProps> = ({ children }
 
       {/* Main Content Area - Chat window takes nearly half the screen */}
       <div className="flex-1 grid min-h-0" style={{ gridTemplateColumns: '280px 1fr 45%' }}>
-        {/* Left Column: Project Navigator - Compact sidebar */}
-        <aside className="bg-white border-r border-gray-200 flex flex-col">
+        {/* Left Column: Project Navigator - Compact sidebar with independent scroll */}
+        <aside className="bg-white border-r border-gray-200 flex flex-col overflow-y-auto">
           <ProjectNavigator />
         </aside>
 
-        {/* Middle Column: Artifact Space - Remaining space */}
-        <main className="bg-gray-50 flex flex-col min-w-0">
+        {/* Middle Column: Artifact Space - Remaining space with independent scroll */}
+        <main className="bg-gray-50 flex flex-col min-w-0 overflow-y-auto">
           <ArtifactSpace />
         </main>
 
-        {/* Right Column: Chat Interface - Nearly half the screen */}
-        <aside className="bg-white border-l border-gray-200 flex flex-col">
+        {/* Right Column: Chat Interface - Nearly half the screen with independent scroll */}
+        <aside className="bg-white border-l border-gray-200 flex flex-col overflow-y-auto">
           <ChatInterface />
         </aside>
       </div>
