@@ -1,0 +1,155 @@
+import React from 'react';
+import { Save, Share, Pin, Clock, FileText, Calendar, GitBranch, Search } from 'lucide-react';
+
+export const ArtifactSpace: React.FC = () => {
+  // Mock artifact data - will be replaced with real data from API
+  const artifacts = [
+    {
+      id: '1',
+      title: 'Suspicious Events – March 1978',
+      type: 'NARRATIVE_THREAD',
+      content: 'I found a strange clustering of articles in March 1978 about a car accident involving Judge Ransom White. The coverage is vague, but one article mentions "inconclusive toxicology results."',
+      isPinned: true,
+      createdAt: new Date('2024-01-15T10:30:00'),
+      project: 'Judge Ransom White Investigation',
+    },
+    {
+      id: '2',
+      title: 'Timeline of Judge White\'s Media Mentions',
+      type: 'TIMELINE',
+      content: 'A chronological overview of all media mentions of Judge Ransom White from 1976-1979, showing unusual patterns in coverage frequency.',
+      isPinned: false,
+      createdAt: new Date('2024-01-15T11:45:00'),
+      project: 'Judge Ransom White Investigation',
+    },
+    {
+      id: '3',
+      title: 'Source Crosswalk – McAllen Deaths vs. Refinery Timeline',
+      type: 'SOURCE_CROSSWALK',
+      content: 'Comparing timelines of pesticide deaths and refinery expansion to identify potential connections and overlapping individuals or organizations.',
+      isPinned: false,
+      createdAt: new Date('2024-01-14T14:20:00'),
+      project: 'Pesticide Deaths in McAllen, TX',
+    },
+  ];
+
+  const getArtifactIcon = (type: string) => {
+    switch (type) {
+      case 'TIMELINE':
+        return <Calendar className="w-4 h-4 text-blue-500" />;
+      case 'NARRATIVE_THREAD':
+        return <FileText className="w-4 h-4 text-green-500" />;
+      case 'SOURCE_CROSSWALK':
+        return <GitBranch className="w-4 h-4 text-purple-500" />;
+      case 'HYPOTHESIS_TREE':
+        return <Search className="w-4 h-4 text-orange-500" />;
+      default:
+        return <FileText className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  const formatType = (type: string) => {
+    return type.toLowerCase().replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="p-6 border-b border-gray-200 bg-white">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">Artifacts</h2>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500">
+              {artifacts.length} artifacts
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Artifact List */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {artifacts.map((artifact) => (
+          <div
+            key={artifact.id}
+            className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+          >
+            {/* Artifact Header */}
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center space-x-3">
+                {getArtifactIcon(artifact.type)}
+                <div>
+                  <h3 className="font-medium text-gray-900 text-sm">
+                    {artifact.title}
+                  </h3>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <span className="text-xs text-gray-500">
+                      {formatType(artifact.type)}
+                    </span>
+                    <span className="text-xs text-gray-300">•</span>
+                    <span className="text-xs text-gray-500">
+                      {artifact.project}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-1">
+                {artifact.isPinned && (
+                  <Pin className="w-4 h-4 text-amber-500 fill-current" />
+                )}
+                <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                  <Save className="w-4 h-4" />
+                </button>
+                <button className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                  <Share className="w-4 h-4" />
+                </button>
+                <button className="p-1 text-gray-400 hover:text-amber-500 transition-colors">
+                  <Pin className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Artifact Content */}
+            <div className="text-sm text-gray-700 leading-relaxed mb-3">
+              {artifact.content}
+            </div>
+
+            {/* Artifact Footer */}
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <div className="flex items-center space-x-1">
+                <Clock className="w-3 h-3" />
+                <span>{formatDate(artifact.createdAt)}</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-400">Generated by Jordi</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Empty State */}
+      {artifacts.length === 0 && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No artifacts yet</h3>
+            <p className="text-gray-500">
+              Start a conversation with Jordi to generate research artifacts
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}; 
