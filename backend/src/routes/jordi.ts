@@ -25,9 +25,25 @@ router.post('/chat', async (req, res) => {
   try {
     const { message, projectId = 'default', userId } = chatSchema.parse(req.body);
 
+    // Handle demo user case - look up by email if userId is 'demo-user'
+    let actualUserId = userId;
+    if (userId === 'demo-user') {
+      const demoUser = await prisma.user.findFirst({
+        where: { email: 'demo@storymine.com' }
+      });
+      
+      if (!demoUser) {
+        return res.status(404).json({
+          error: 'Demo user not found',
+          message: 'Please contact support'
+        });
+      }
+      actualUserId = demoUser.id;
+    }
+
     // Check user's token balance
     const tokenBalance = await prisma.tokenBalance.findUnique({
-      where: { userId }
+      where: { userId: actualUserId }
     });
 
     if (!tokenBalance || tokenBalance.balance < 10) {
@@ -38,12 +54,12 @@ router.post('/chat', async (req, res) => {
     }
 
     // Process message with Jordi
-    const result = await jordiAgent.processMessage(projectId, message, userId);
+    const result = await jordiAgent.processMessage(projectId, message, actualUserId);
 
     // Track token usage - Fix metadata type issue
     await prisma.tokenUsage.create({
       data: {
-        userId,
+        userId: actualUserId,
         tokensUsed: result.tokenUsage,
         operation: 'jordi_conversation',
         projectId,
@@ -57,7 +73,7 @@ router.post('/chat', async (req, res) => {
 
     // Update user's token balance
     await prisma.tokenBalance.update({
-      where: { userId },
+      where: { userId: actualUserId },
       data: {
         totalUsed: {
           increment: result.tokenUsage
@@ -70,7 +86,7 @@ router.post('/chat', async (req, res) => {
     });
 
     // Save conversation to database
-    await jordiAgent.saveMemoryToDatabase(projectId, userId);
+    await jordiAgent.saveMemoryToDatabase(projectId, actualUserId);
 
     return res.json({
       success: true,

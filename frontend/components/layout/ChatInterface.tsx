@@ -111,21 +111,50 @@ What story would you like to uncover today?`,
     setIsLoading(true);
 
     try {
-      // TODO: Send message to backend API
-      // For now, show a placeholder response
-      setTimeout(() => {
+      // Send message to backend API
+      const response = await fetch('/api/jordi/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message,
+          projectId: 'default-project', // TODO: Get from actual project context
+          userId: 'demo-user'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: 'I understand you want to explore that topic. I\'m still connecting to my full analysis capabilities. Please check back soon!',
+          content: data.data.response,
           timestamp: new Date(),
-          reasoning: []
+          reasoning: data.data.reasoning || [],
+          artifacts: data.data.artifacts || []
         };
         setMessages(prev => [...prev, assistantMessage]);
-        setIsLoading(false);
-      }, 1000);
+      } else {
+        throw new Error(data.error || 'Unknown error occurred');
+      }
     } catch (error) {
       console.error('Error sending message:', error);
+      // Show error message to user
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'I apologize, but I encountered an error processing your request. Please try again in a moment.',
+        timestamp: new Date(),
+        reasoning: []
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
     }
   };
