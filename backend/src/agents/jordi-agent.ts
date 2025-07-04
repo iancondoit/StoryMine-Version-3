@@ -1,8 +1,8 @@
 import { PrismaClient } from '../generated/prisma';
-import { MistralService } from '../services/mistral-service';
+// import { MistralService } from '../services/mistral-service'; // Temporarily disabled - keeping conversation simple
 
 const prisma = new PrismaClient();
-const mistralService = new MistralService();
+// const mistralService = new MistralService(); // Temporarily disabled
 
 interface JordiResponse {
   response: string;
@@ -96,8 +96,22 @@ export class JordiAgent {
       }
 
       // Get diverse Scout data for context based on message keywords
-      const keywords = message.toLowerCase().match(/\b(war|civil rights|politics|political|naacp|georgia|congress|military|social|economic|investigation|scandal|conflict|government|court|election|bomb|attack|britain|africa|house|senate|tax|levy|women|commander|medal|service|murder|crime|mystery|unusual|anomalous)\b/g) || [];
-      const searchQuery = keywords.length > 0 ? keywords.join(' ') : '';
+      let searchQuery = '';
+      
+      // Create a more targeted search based on the message content
+      if (messageText.includes('murder')) {
+        searchQuery = 'murder';
+      } else if (messageText.includes('disappear') || messageText.includes('missing')) {
+        searchQuery = 'missing';
+      } else if (messageText.includes('political') || messageText.includes('scandal')) {
+        searchQuery = 'political';
+      } else if (messageText.includes('police')) {
+        searchQuery = 'police';
+      } else {
+        // Fallback to broader keyword search
+        const keywords = message.toLowerCase().match(/\b(war|civil rights|politics|political|naacp|georgia|congress|military|social|economic|investigation|scandal|conflict|government|court|election|bomb|attack|britain|africa|house|senate|tax|levy|women|commander|medal|service|murder|crime|mystery|unusual|anomalous)\b/g) || [];
+        searchQuery = keywords.length > 0 ? keywords.join(' ') : '';
+      }
       
       const scoutData = await this.searchScoutData(searchQuery);
       
@@ -124,20 +138,21 @@ export class JordiAgent {
         scoutData.push(...diverseData);
       }
 
-      // Build context for Mistral
-      const context = this.buildContext(project, scoutData, message);
+      // TODO: Re-enable Mistral later - for now, provide simple conversational responses
+      // const context = this.buildContext(project, scoutData, message);
+      // const mistralResponse = await mistralService.generateResponse(context);
       
-      // Get response from Mistral
-      const mistralResponse = await mistralService.generateResponse(context);
+      // Create a simple conversational response based on Scout data
+      const conversationalResponse = this.createConversationalResponse(message, scoutData);
       
       // Store in memory
-      this.updateMemory(projectId, message, mistralResponse.content);
+      this.updateMemory(projectId, message, conversationalResponse.response);
       
       return {
-        response: mistralResponse.content,
-        reasoning: mistralResponse.reasoning,
-        artifacts: mistralResponse.artifacts,
-        tokenUsage: mistralResponse.tokenUsage.total
+        response: conversationalResponse.response,
+        reasoning: conversationalResponse.reasoning,
+        artifacts: [], // No artifacts for now - keeping content in conversation
+        tokenUsage: conversationalResponse.tokenUsage
       };
     } catch (error) {
       console.error('Error processing message:', error);
@@ -150,6 +165,87 @@ export class JordiAgent {
         tokenUsage: 5
       };
     }
+  }
+
+  private createConversationalResponse(message: string, scoutData: any[]): {
+    response: string;
+    reasoning: string[];
+    tokenUsage: number;
+  } {
+    // If no data found, provide a gentle response
+    if (scoutData.length === 0) {
+      return {
+        response: "I'm not finding much on that specific angle right now. Want to try a different approach or topic?",
+        reasoning: ["No relevant Scout data found"],
+        tokenUsage: 5
+      };
+    }
+
+    // Get a few interesting articles to mention conversationally
+    const interestingArticles = scoutData.slice(0, 3);
+    
+    let response = "";
+    const messageText = message.toLowerCase();
+
+    // Handle different types of queries conversationally
+    if (messageText.includes('murder') && messageText.includes('mysterious')) {
+      // Filter for actual murder-related articles
+      const murderArticles = interestingArticles.filter(analysis => 
+        analysis.article.title.toLowerCase().includes('murder') ||
+        analysis.article.title.toLowerCase().includes('kill') ||
+        analysis.article.title.toLowerCase().includes('death') ||
+        analysis.article.title.toLowerCase().includes('found dead') ||
+        analysis.storyTypes?.toLowerCase().includes('crime')
+      );
+      
+      if (murderArticles.length > 0) {
+        response = "I've got some intriguing unsolved cases from the Atlanta archives. ";
+        
+        const firstCase = murderArticles[0];
+        const year = firstCase.article.date ? new Date(firstCase.article.date).getFullYear() : 'unknown year';
+        response += `There's a ${year} case that really caught my attention - ${firstCase.article.title.replace(/"/g, '')}. `;
+        
+        if (murderArticles.length > 1) {
+          response += `Plus a couple other mysterious deaths from that era. `;
+        }
+        
+        response += "Want me to dig deeper into any of these?";
+      } else {
+        response = "I don't see any obvious murder mysteries in what I'm finding right now. Want me to search for suspicious deaths or unexplained disappearances instead?";
+      }
+    } else if (messageText.includes('political') || messageText.includes('scandal')) {
+      response = "The political scene in 1940s-50s Atlanta had its share of drama. ";
+      
+      if (interestingArticles.length > 0) {
+        const firstArticle = interestingArticles[0];
+        const year = firstArticle.article.date ? new Date(firstArticle.article.date).getFullYear() : 'that era';
+        response += `One case from ${year} involved ${firstArticle.article.title.toLowerCase().replace(/"/g, '')}. `;
+        response += "Should I pull more details on that one?";
+      } else {
+        response += "Should I search for more specific political incidents?";
+      }
+    } else {
+      // General response with story samples
+      response = `I found ${scoutData.length} articles that might interest you. `;
+      
+      if (interestingArticles.length > 0) {
+        const firstArticle = interestingArticles[0];
+        const year = firstArticle.article.date ? new Date(firstArticle.article.date).getFullYear() : 'the period';
+        response += `One from ${year} caught my eye: ${firstArticle.article.title.replace(/"/g, '')}. `;
+        
+        if (interestingArticles.length > 1) {
+          response += `There are a couple others from that era too. `;
+        }
+      }
+      
+      response += "What angle interests you most?";
+    }
+
+    return {
+      response,
+      reasoning: [`Found ${scoutData.length} relevant articles`, "Generated conversational response"],
+      tokenUsage: 10
+    };
   }
 
   private buildContext(project: any, scoutData: any[], message: string): string {
