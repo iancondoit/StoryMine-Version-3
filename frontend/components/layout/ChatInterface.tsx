@@ -47,8 +47,8 @@ export const ChatInterface: React.FC = () => {
   useEffect(() => {
     const initializeJordi = async () => {
       try {
-        // Fetch dataset statistics
-        const response = await fetch('/api/jordi/scout/stats');
+        // Fetch dataset statistics from backend server
+        const response = await fetch('http://localhost:3001/api/jordi/scout/stats');
         const data = await response.json();
         
         if (data.success) {
@@ -112,7 +112,7 @@ What story would you like to uncover today?`,
 
     try {
       // Send message to backend API
-      const response = await fetch('/api/jordi/chat', {
+      const response = await fetch('http://localhost:3001/api/jordi/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,7 +194,7 @@ What story would you like to uncover today?`,
                 <div className="flex-1">
                   <div className={`p-3 rounded-lg ${
                     msg.role === 'user' 
-                      ? 'bg-blue-700 text-white font-medium' 
+                      ? 'bg-blue-800 text-white font-semibold' 
                       : 'bg-gray-100 text-gray-900'
                   }`}>
                     <div className="text-sm leading-relaxed whitespace-pre-wrap">
